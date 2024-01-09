@@ -374,6 +374,7 @@ class Computations():
         gwL = self.computegL(self.gWPhase)
         self.qW = self.computeFlowrate(gwL)
         self.obj.connW = self.conn.copy()
+        self.obj.qW = self.qW
         self.krw = self.qW/self.qwSPhase
 
         try:
@@ -381,6 +382,7 @@ class Computations():
             gnwL = self.computegL(self.gNWPhase)
             self.qNW = self.computeFlowrate(gnwL)
             self.obj.connNW = self.conn.copy()
+            self.obj.qNW = self.qNW
             self.krnw = self.qNW/self.qnwSPhase
         except AssertionError:
             self.qNW, self.krnw = 0, 0
@@ -662,8 +664,9 @@ class Computations():
         cond4 = (cond4a*arrr)
         try:
             assert cond4.sum() > 0
+            #print('  condition 4  ')
             #if not self.is_oil_inj and 10761 in arr: print('  cond4  ')
-            conAng[cond4] = self.thetaRecAng[arr[cond4]]
+            conAng[cond4] = (self.thetaRecAng[arr]*cond4)[cond4]
             apexDist[cond4] = (self.sigma/Pc*np.cos(conAng+halfAng)/np.sin(halfAng))[cond4]
             cond4b = cond4 & (apexDist > initedApexDist)
             cond4c = cond4 & (~cond4b) & (apexDist < m_initOrMinApexDistHist)
@@ -929,7 +932,8 @@ class Computations():
             result_str+="\n%.6g,%.6e,%.6g,%.6e,%.6g,%.6g,%.0f" % (
                 self.satW, self.qW, self.krw, self.qNW, self.krnw,
                 Pc, self.totNumFill, )
-            
+        
+        return result_str
 
 
 

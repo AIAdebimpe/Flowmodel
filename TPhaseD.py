@@ -135,7 +135,7 @@ class TwoPhaseDrainage(SinglePhase):
                     else:
                         self.qNW, self.krnw = 0, 0
 
-                    self.do.writeResult(self.resultD_str, self.capPresMax)
+                    self.resultD_str = self.do.writeResult(self.resultD_str, self.capPresMax)
                     self.PcTarget = min(self.maxPc+1e-7, self.PcTarget+(
                         self.minDeltaPc+abs(
                          self.PcTarget)*self.deltaPcFraction))
@@ -155,6 +155,7 @@ class TwoPhaseDrainage(SinglePhase):
         print(self.rpd, self.sigma, self.maxPc)
         print('Time spent for the drainage process: ', time() - start)        
         print('==========================================================\n\n')
+        del self.do
 
 
     def popUpdateOilInj(self):
@@ -251,7 +252,7 @@ class TwoPhaseDrainage(SinglePhase):
         self.__CondTP_Drainage__()
         self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
         self.do.computePerm()
-        self.do.writeResult(self.resultD_str, self.capPresMax)
+        self.resultD_str = self.do.writeResult(self.resultD_str, self.capPresMax)
 
     
     def __computePc__(self, arrr, Fd): 
@@ -404,7 +405,16 @@ class TwoPhaseDrainage(SinglePhase):
         except  AssertionError:
             pass
         
-        try:
+        cond = (self._cornArea > self.AreaSPhase) & arrr
+        self._cornArea[cond] = self.AreaSPhase[cond]
+        cond = (self._cornCond > self.gwSPhase) & arrr
+        self._cornCond[cond] = self.gwSPhase[cond]
+
+        self._centerArea[arrr] = self.AreaSPhase[arrr] - self._cornArea[arrr]
+        self._centerCond[arrr] = np.where(self.AreaSPhase[arrr] != 0.0, self._centerArea[
+            arrr]/self.AreaSPhase[arrr]*self.gnwSPhase[arrr], 0.0)
+
+        '''try:
             assert (self._cornArea[arrr] <= self.AreaSPhase[arrr]).all()
             assert (self._cornCond[arrr] <= self.gwSPhase[arrr]).all()
 
@@ -413,7 +423,7 @@ class TwoPhaseDrainage(SinglePhase):
                 arrr]/self.AreaSPhase[arrr]*self.gnwSPhase[arrr], 0.0)
         except AssertionError:
             print('higher values than expected!')
-            from IPython import embed; embed()
+            from IPython import embed; embed()'''
 
 
     def _updateCornerApex_(self):
@@ -492,7 +502,7 @@ class TwoPhaseDrainage(SinglePhase):
             self.calcBox[0], self.calcBox[1], )
         self.resultD_str+="\n# Wettability:"
         self.resultD_str+="\n# model \tmintheta \tmaxtheta \tdelta \teta \tdistmodel"
-        self.resultD_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g\t%.6g" % (
+        self.resultD_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g" % (
             self.wettClass, round(self.minthetai*180/np.pi,3), round(self.maxthetai*180/np.pi,3), self.delta, self.eta,) 
         self.resultD_str+=self.distModel
         self.resultD_str+="\nmintheta \tmaxtheta \tmean  \tstd"

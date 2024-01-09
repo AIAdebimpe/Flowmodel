@@ -41,10 +41,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self._condWP = self._cornCond.copy()
         self._condNWP = self._centerCond.copy()
 
-        self.fwList = np.array([0.2, 0.4, 0.5, 0.6, 0.7, 0.8])
-        #self.fwList = np.array([0.4,0.6])
-        self.fwListS = np.ones(self.fwList.size)
-
 
     @property
     def AreaWPhase(self):
@@ -121,7 +117,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                     self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
                     self.do.computePerm()
                     self.Pc = self.PcTarget
-                    self.do.writeResult(self.resultI_str, self.capPresMin)
+                    self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
                     self.PcTarget = max(self.minPc-1e-10, self.PcTarget-(
                         self.minDeltaPc+abs(
                          self.PcTarget)*self.deltaPcFraction))
@@ -134,6 +130,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
+        del self.do
         #from IPython import embed; embed()
 
     def __PImbibition__(self):
@@ -170,7 +167,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.__CondTPImbibition__()
                 self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
                 self.do.computePerm()
-                self.do.writeResult(self.resultI_str, self.capPresMin)
+                self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
                 self.totNumFill = 0
             except (AssertionError, IndexError):
                 pass
@@ -766,7 +763,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self.calcBox[0], self.calcBox[1], )
         self.resultI_str+="\n# Wettability:"
         self.resultI_str+="\n# model \tmintheta \tmaxtheta \tdelta \teta \tdistmodel"
-        self.resultI_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g\t%.6g" % (
+        self.resultI_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g" % (
             self.wettClass, round(self.minthetai*180/np.pi,3), round(self.maxthetai*180/np.pi,3), self.delta, self.eta,)
         self.resultI_str+=self.distModel
         self.resultI_str+="\nmintheta \tmaxtheta \tmean  \tstd"
