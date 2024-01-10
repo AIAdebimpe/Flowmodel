@@ -2,11 +2,11 @@ import os
 import numpy as np
 import pandas as pd
 from math import sqrt, pi
-from inputData import InputData
 from time import time
 import warnings
 from itertools import chain
 
+from .inputData import InputData
 
 class Network(InputData):
 

@@ -1,7 +1,7 @@
 from time import time
 import numpy as np
-from utilities import Computations
-from network import Network
+from .utilities import Computations
+from .network import Network
 
 
 class SinglePhase(Network):
