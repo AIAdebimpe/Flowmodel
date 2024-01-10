@@ -5,9 +5,9 @@ import pandas as pd
 
 from inputData import InputData
 from network import Network
-from SPhase import SinglePhase
-from TPhaseD import TwoPhaseDrainage
-from TPhaseImb import TwoPhaseImbibition
+from sPhase import SinglePhase
+from tPhaseD import TwoPhaseDrainage
+from tPhaseImb import TwoPhaseImbibition
 from plot import makePlot
 
 

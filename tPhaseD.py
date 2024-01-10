@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from sortedcontainers import SortedList
 from utilities import Computations
-from SPhase import SinglePhase
+from sPhase import SinglePhase
 
 class TwoPhaseDrainage(SinglePhase):
     def __new__(cls, obj, writeData=False):

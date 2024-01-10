@@ -9,7 +9,7 @@ import math
 from sortedcontainers import SortedList
 
 from utilities import Computations
-from TPhaseD import TwoPhaseDrainage
+from tPhaseD import TwoPhaseDrainage
 
 class TwoPhaseImbibition(TwoPhaseDrainage):
     def __new__(cls, obj, writeData=False):

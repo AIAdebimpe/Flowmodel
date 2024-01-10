@@ -6,7 +6,7 @@ from time import time
 import warnings
 from itertools import chain
 
-from .inputData import InputData
+from inputData import InputData
 
 class Network(InputData):
 

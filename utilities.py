@@ -3,7 +3,7 @@ import numpy as np
 from itertools import chain
 import numpy_indexed as npi
 from scipy.sparse import csr_matrix
-from .solver import Solver
+from solver import Solver
 import warnings
 import numba as nb
 from numba import int64, float64
