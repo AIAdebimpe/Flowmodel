@@ -12,11 +12,11 @@ from utilities import Computations
 from TPhaseD import TwoPhaseDrainage
 
 class TwoPhaseImbibition(TwoPhaseDrainage):
-    def __new__(cls, obj):
+    def __new__(cls, obj, writeData=False):
         obj.__class__ = TwoPhaseImbibition
         return obj
     
-    def __init__(self, obj):        
+    def __init__(self, obj, writeData=False):        
         self.do = Computations(self)
     
         self.porebodyPc = np.zeros(self.totElements)
@@ -25,8 +25,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.pistonPc_PHing = np.zeros(self.nPores+2)
         self.fluid[[-1, 0]] = 0, 1  
         self.trappedNW = np.zeros(self.totElements, dtype='bool')
-        self.is_oil_inj = False
         self.fillmech = np.full(self.totElements, -5)
+
         self._updateCornerApex_()
         self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
         self.capPresMin = self.maxPc
@@ -41,6 +41,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self._condWP = self._cornCond.copy()
         self._condNWP = self._centerCond.copy()
 
+        self.is_oil_inj = False
+        self.writeData = writeData
 
     @property
     def AreaWPhase(self):
@@ -77,12 +79,11 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
     
     def imbibition(self):
         start = time()
+        if self.writeData: self.__writeHeadersI__()
+        else: self.resultI_str = ""
 
         print('--------------------------------------------------------------')
         print('-----------------------Two Phase Imbibition Process-----------')
-
-        if self.writeData: self.__writeHeaders__()
-        else: self.resultI_str = ""
 
         self.SwTarget = min(self.finalSat, self.satW+self.dSw*0.5)
         self.PcTarget = max(self.minPc, self.capPresMin-(
@@ -93,7 +94,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.satW-self.SwTarget)))
         self.done = False
         self.createFile = True
-        self.fwOld = -0.06
 
         while self.filling:
         
@@ -128,23 +128,20 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             with open(self.file_name, 'a') as fQ:
                 fQ.write(self.resultI_str)
 
+        print("Number of trapped elements: ", self.trappedNW.sum())
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
         del self.do
         #from IPython import embed; embed()
 
     def __PImbibition__(self):
-        global capPres, cntT, cntP
-
         self.totNumFill = 0
-        self.invInsideBox = 0
-        cntT, cntP = 0, 0
 
         while (self.PcTarget-1.0e-32 < self.capPresMin) & (
                 self.satW <= self.SwTarget):
             self.oldSatW = self.satW
             self.invInsideBox = 0
-            cntT, cntP = 0, 0
+            self.cntT, self.cntP = 0, 0
             try:
                 while (self.invInsideBox < self.fillTarget) & (
                     len(self.ElemToFill) != 0) & (
@@ -159,22 +156,16 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.capPresMin = min(self.capPresMin, self.PcTarget)
             except AssertionError:
                 pass
-            #print('invasions:   ', cntP+cntT, self.invInsideBox, self.fillTarget)
-            self.totNumFill += (cntP+cntT)
 
-            try:
-                assert (self.PcI[self.ElemToFill[0]] < self.capPresMin)
-                self.__CondTPImbibition__()
-                self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
-                self.do.computePerm()
-                self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
-                self.totNumFill = 0
-            except (AssertionError, IndexError):
-                pass
+            self.__CondTPImbibition__()
+            self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
+            self.totNumFill += (self.cntP+self.cntT)
+
             try:
                 assert self.PcI[self.ElemToFill[0]] >= self.PcTarget
             except (AssertionError, IndexError):
                 break
+
         try:
             assert (self.PcI[self.ElemToFill[0]] < self.PcTarget) & (
                 self.capPresMin > self.PcTarget)
@@ -184,10 +175,13 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         except IndexError:
             pass
 
+        self.__CondTPImbibition__()
+        self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
+        self.do.computePerm()
+        self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
+
         
     def popUpdateWaterInj(self):
-        global capPres, cntP, cntT
-
         k = self.ElemToFill.pop(0)
         capPres = self.PcI[k]
         self.capPresMin = np.min([self.capPresMin, capPres])
@@ -200,7 +194,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self.fluid[k] = 0
             self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres)+3*(
                 self.snapoffPc[k] == capPres)
-            cntT += 1
+            self.cntT += 1
             self.invInsideBox += self.isinsideBox[k]
 
             ppp = np.array([self.P1array[ElemInd-1], self.P2array[
@@ -212,8 +206,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             assert pp.size > 0
             [*map(lambda i: self.do.isTrapped(i, 1, self.trappedNW), pp)]
             self.__computePc__(self.capPresMin, pp)
-            
-            # to remove trapped elements later    
+              
         except AssertionError:
             pass
 
@@ -226,7 +219,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres) + 2*(
                 self.porebodyPc[k] == capPres) + 3*(
                     self.snapoffPc[k] == capPres)
-            cntP += 1
+            self.cntP += 1
             self.invInsideBox += self.isinsideBox[k]
 
             tt = self.PTConData[ElemInd]+self.nPores
@@ -237,8 +230,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             [*map(lambda i: self.do.isTrapped(i, 1, self.trappedNW), tt)]
             self.__computePc__(self.capPresMin, tt)
 
-            # to remove trapped elements later
-            
         except AssertionError:
             pass
 
@@ -750,7 +741,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.porebodyPc[ind] = Pc
 
 
-    def __writeHeaders__(self):
+    def __writeHeadersI__(self):
         result_dir = "./results_csv/"   
         self.file_name = os.path.join(result_dir, "FlowmodelOOP_"+
                             self.title+"_Imbibition_"+str(self._num)+".csv")

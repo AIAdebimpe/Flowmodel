@@ -7,15 +7,14 @@ import numpy as np
 import pandas as pd
 from sortedcontainers import SortedList
 from utilities import Computations
-from plot import makePlot
 from SPhase import SinglePhase
 
 class TwoPhaseDrainage(SinglePhase):
-    def __new__(cls, obj):
+    def __new__(cls, obj, writeData=False):
         obj.__class__ = TwoPhaseDrainage
         return obj
     
-    def __init__(self, obj):
+    def __init__(self, obj, writeData=False):
         self.do = Computations(self)
         
         self.fluid = np.zeros(self.totElements, dtype='int')
@@ -50,9 +49,6 @@ class TwoPhaseDrainage(SinglePhase):
         self.centreEPOilInj[self.elementLists] = 2*self.sigma*np.cos(
             self.thetaRecAng[self.elementLists])/self.Rarray[self.elementLists]
         
-        self.capPresMax = 0
-        self.capPresMin = 0
-        
         self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
         ElemToFill = self.nPores+self.conTToIn
         self.ElemToFill.update(ElemToFill)
@@ -63,6 +59,11 @@ class TwoPhaseDrainage(SinglePhase):
         self._centerArea = np.zeros(self.totElements) 
         self._cornCond = self.gwSPhase.copy()
         self._centerCond = np.zeros(self.totElements)
+
+        self.capPresMax = 0
+        self.capPresMin = 0
+        self.is_oil_inj = True
+        self.writeData = writeData
 
     @property
     def AreaWPhase(self):
@@ -84,23 +85,18 @@ class TwoPhaseDrainage(SinglePhase):
         return (self.PcD[k], k > self.nPores, -k)
     
     def drainage(self):
-        global capPres
-        self.is_oil_inj = True
         start = time()
+        if self.writeData: self.__writeHeadersD__()
+        else: self.resultD_str = ""
+
         print('--------------------------------------------------------------')
         print('---------------------Two Phase Drainage Process---------------')
-
-        if self.writeData: self.__writeHeaders__()
-        else: self.resultD_str = ""
 
         self.SwTarget = max(self.finalSat, self.satW-self.dSw*0.5)
         self.PcTarget = min(self.maxPc, self.capPresMax+(
             self.minDeltaPc+abs(
              self.capPresMax)*self.deltaPcFraction)*0.1)
         self.oldPcTarget = 0
-
-        capPres = self.PcD[self.ElemToFill[0]]
-
 
         while self.filling:
             self.oldSatW = self.satW
@@ -159,7 +155,6 @@ class TwoPhaseDrainage(SinglePhase):
 
 
     def popUpdateOilInj(self):
-        global capPres, cntP, cntT
         k = self.ElemToFill.pop(0)
         capPres = self.PcD[k]
         self.capPresMax = np.max([self.capPresMax, capPres])
@@ -175,14 +170,11 @@ class TwoPhaseDrainage(SinglePhase):
             p = ppp[(self.fluid[ppp] == 0) & ~(self.trappedW[ppp])]
             [*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), p)]
 
+            self.cntT += 1
+            self.invInsideBox += self.isinsideBox[k]
             self.__update_PcD_ToFill__(p)
-            cntT += 1
-            self.invInsideBox += self.isinsideBox[k]
-        except AssertionError:
-            pass
-        except IndexError:
-            cntT += 1
-            self.invInsideBox += self.isinsideBox[k]
+        except (AssertionError, IndexError):
+            pass            
 
         try:
             assert k <= self.nPores
@@ -193,18 +185,15 @@ class TwoPhaseDrainage(SinglePhase):
             thr = thr[(self.fluid[thr] == 0) & ~(self.trappedW[thr])]
             [*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), thr)]
 
+            self.cntP += 1
+            self.invInsideBox += self.isinsideBox[k]
             self.__update_PcD_ToFill__(thr)
-            cntP += 1
-            self.invInsideBox += self.isinsideBox[k]
-        except AssertionError:
+        except (AssertionError, IndexError):
             pass
-        except IndexError:
-            cntP += 1
-            self.invInsideBox += self.isinsideBox[k]
+    
 
     def __PDrainage__(self):
         warnings.simplefilter(action='ignore', category=RuntimeWarning)
-        global capPres, cntT, cntP
         self.totNumFill = 0
         self.fillTarget = max(self.m_minNumFillings, int(
             self.m_initStepSize*(self.totElements)*(
@@ -215,7 +204,7 @@ class TwoPhaseDrainage(SinglePhase):
                 self.satW > self.SwTarget):
             self.oldSatW = self.satW
             self.invInsideBox = 0
-            cntT, cntP = 0, 0
+            self.cntT, self.cntP = 0, 0
             while (self.invInsideBox < self.fillTarget) & (
                 len(self.ElemToFill) != 0) & (
                     self.PcD[self.ElemToFill[0]] <= self.PcTarget):
@@ -229,7 +218,7 @@ class TwoPhaseDrainage(SinglePhase):
             
             self.__CondTP_Drainage__()
             self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
-            self.totNumFill += (cntP+cntT)
+            self.totNumFill += (self.cntP+self.cntT)
             try:
                 self.fillTarget = max(self.m_minNumFillings, int(min(
                     self.fillTarget*self.m_maxFillIncrease,
@@ -414,17 +403,6 @@ class TwoPhaseDrainage(SinglePhase):
         self._centerCond[arrr] = np.where(self.AreaSPhase[arrr] != 0.0, self._centerArea[
             arrr]/self.AreaSPhase[arrr]*self.gnwSPhase[arrr], 0.0)
 
-        '''try:
-            assert (self._cornArea[arrr] <= self.AreaSPhase[arrr]).all()
-            assert (self._cornCond[arrr] <= self.gwSPhase[arrr]).all()
-
-            self._centerArea[arrr] = self.AreaSPhase[arrr] - self._cornArea[arrr]
-            self._centerCond[arrr] = np.where(self.AreaSPhase[arrr] != 0.0, self._centerArea[
-                arrr]/self.AreaSPhase[arrr]*self.gnwSPhase[arrr], 0.0)
-        except AssertionError:
-            print('higher values than expected!')
-            from IPython import embed; embed()'''
-
 
     def _updateCornerApex_(self):
         arrr = ((self.fluid == 1) & (~self.trappedW))
@@ -444,45 +422,9 @@ class TwoPhaseDrainage(SinglePhase):
             self.cornExistsSq.T, self.initedSq.T, self.initOrMaxPcHistSq.T,
             self.initOrMinApexDistHistSq.T, self.advPcSq.T,
             self.recPcSq.T, apexDist, self.initedApexDistSq.T, self.trappedW)
-        
-
-    def __writeHeadersOld__(self):
-        self._num = 1
-        result_dir = "./results_csv/"
-        os.makedirs(os.path.dirname(result_dir), exist_ok=True)
-        while True:         
-            file_name = os.path.join(result_dir, "FlowmodelOOP_"+
-                                 self.title+"_Drainage_"+str(self._num)+".csv")
-            if os.path.isfile(file_name): self._num += 1
-            else:
-                self.fQ = open(file_name, 'a')
-                break
-        
-        self.fQ.write('======================================================================')
-        self.fQ.write('\n'+'%'+'Fluid properties:\nsigma (mN/m)  \tmu_w (cP)  \tmu_nw (cP)')
-        self.fQ.write('\n'+'%'+ '\t%.6g\t\t%.6g\t\t%.6g' % (
-            self.sigma*1000, self.muw*1000, self.munw*1000, ))
-        self.fQ.write('\n'+'%'+' calcBox: \t %.6g \t %.6g' % (
-            self.calcBox[0], self.calcBox[1], ))
-        self.fQ.write('\n'+'%'+'Wettability:')
-        self.fQ.write('\n'+'%'+'model \tmintheta \tmaxtheta \tdelta \teta \tdistmodel')
-        self.fQ.write('\n'+'%'+'%.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g\t' % (
-            self.wettClass, round(self.minthetai*180/np.pi,3), round(self.maxthetai*180/np.pi,3), self.delta, self.eta ,) + str(self.distModel),)
-        self.fQ.write('\nmintheta \tmaxtheta \tmean  \tstd')
-        self.fQ.write('\n'+'%'+'%3.6g\t\t%3.6g\t\t%3.6g\t\t%3.6g' % (
-            round(self.contactAng.min()*180/np.pi,3), round(self.contactAng.max()*180/np.pi,3), round(self.contactAng.mean()*180/np.pi,3), round(self.contactAng.std()*180/np.pi,3)))
-        
-        self.fQ.write('\nPorosity:  '+'%3.6g' % (self.porosity))
-        self.fQ.write('\nMaximum pore connection:  '+'%3.6g' % (self.maxPoreCon))
-        self.fQ.write('\nAverage pore-to-pore distance:  '+'%3.6g' % (self.avgP2Pdist))
-        self.fQ.write('\nMean pore radius:  '+'%3.6g' % (self.Rarray[self.poreList].mean()))
-        self.fQ.write('\nAbsolute permeability:  '+'%3.6g' % (self.absPerm))
-
-        self.fQ.write('\n======================================================================')
-        self.fQ.write("\n"+"%"+"Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions")
 
 
-    def __writeHeaders__(self):
+    def __writeHeadersD__(self):
         self._num = 1
         result_dir = "./results_csv/"
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
