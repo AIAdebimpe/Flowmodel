@@ -20,6 +20,7 @@ class TwoPhaseDrainage(SinglePhase):
         self.fluid = np.zeros(self.totElements, dtype='int')
         self.fluid[-1] = 1   # already filled
         self.trappedW = np.zeros(self.totElements, dtype='bool')
+        self.trappedNW = np.zeros(self.totElements, dtype='bool')
         self.contactAng, self.thetaRecAng, self.thetaAdvAng =\
             self.do.__wettabilityDistribution__()
         self.Fd_Tr = self.do.__computeFd__(self.elemTriangle, self.halfAnglesTr)

@@ -24,7 +24,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.PistonPcAdv = np.zeros(self.totElements)
         self.pistonPc_PHing = np.zeros(self.nPores+2)
         self.fluid[[-1, 0]] = 0, 1  
-        self.trappedNW = np.zeros(self.totElements, dtype='bool')
         self.fillmech = np.full(self.totElements, -5)
 
         self._updateCornerApex_()
@@ -686,17 +685,15 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         arrrCT = arrT[cond[arrT]]
         maxNeiPistonPrs[arrrCT] = np.array([*map(lambda i: self.__func3(i), arrrCT-self.nPores)])
         condb = (maxNeiPistonPrs > 0.0)
-        
-        #from IPython import embed; embed()
         entryPc[condb] = np.minimum(0.999*maxNeiPistonPrs[
             condb]+0.001*entryPc[condb], entryPc[condb])
         
         # Snap-off filling
         self.__computeSnapoffPc1__(Pc)
         #self.__computeSnapoffPc__()
-        
+
         conda = (maxNeiPistonPrs > 0.0) & (entryPc > self.snapoffPc)
-        entryPc[~conda] = self.snapoffPc[~conda]
+        entryPc[~conda&(self.Garray<self.bndG2)] = self.snapoffPc[~conda&(self.Garray<self.bndG2)]
 
         try:
             assert update
@@ -707,11 +704,10 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             
             # update the filling list
             self.ElemToFill.update(arr[diff]) # try .__add__(other)
-            #from IPython import embed; embed()
         except AssertionError:
             self.PcI[arr] = entryPc[arr]
-            self.ElemToFill.update(arr[(self.fluid[arr]==1) & (self.Garray[arr] < self.bndG2)])
-            #from IPython import embed; embed()
+            self.ElemToFill.update(arr[(self.fluid[arr]==1)])
+            
 
 
     def __porebodyFilling__(self, ind):

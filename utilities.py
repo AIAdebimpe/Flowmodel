@@ -1,12 +1,17 @@
+import os
+import sys
 
 import numpy as np
 from itertools import chain
 import numpy_indexed as npi
 from scipy.sparse import csr_matrix
-from solver import Solver
 import warnings
 import numba as nb
 from numba import int64, float64
+
+#dirname = os.path.dirname(os.path.realpath(__file__))
+#sys.path.insert(0, dirname)
+from solver import Solver
 
 
 class Computations():

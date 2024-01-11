@@ -311,27 +311,27 @@ class Network(InputData):
         for ind in self.elementLists:
             try:
                 assert ind <= self.nPores
-                pp = Pore(self.pore[ind-1], self.poreCon[ind], self.throatCon[ind]+self.nPores)
+                pp = Pore(self, ind)
                 try:
                     assert pp.G <= self.bndG1
-                    el = Element(Triangle(pp, ind, self), self)
+                    el = Element(Triangle(pp))
                 except AssertionError:
                     try:
                         assert pp.G > self.bndG2
-                        el = Element(Circle(pp), self)
+                        el = Element(Circle(pp))
                     except AssertionError:
-                        el = Element(Square(pp), self)
+                        el = Element(Square(pp))
             except AssertionError:
-                tt = Throat(self.throat[ind-self.nPores-1], self)
+                tt = Throat(self, ind)
                 try:
                     assert tt.G <= self.bndG1
-                    el = Element(Triangle(tt, ind, self), self)
+                    el = Element(Triangle(tt))
                 except AssertionError:
                     try:
                         assert tt.G > self.bndG2
-                        el = Element(Circle(tt), self)
+                        el = Element(Circle(tt))
                     except AssertionError:
-                        el = Element(Square(tt), self)
+                        el = Element(Square(tt))
 
                 try:
                     assert el.conToInlet
@@ -457,21 +457,21 @@ class Network(InputData):
         #print('Average pore-to-pore distance = ', np.mean(self.lenTotarray))
         print('Average pore-to-pore distance = ', self.avgP2Pdist)
         print('Mean pore radius = ', np.mean(self.Rarray[self.poreList]))
-            
-class Element(object):
-    def __init__(self, obj, other):
-        self.indexOren = obj.indexOren
-        if self.indexOren > other.nPores:
-            self.conToInlet = obj.conToInlet
-            self.conToOutlet = obj.conToOutlet
-            self.conToExit = obj.conToExit
+
+
+class Element(Network):
+    def __new__(cls, obj):
+        obj.__class__ = Element
+        return obj
+    
+    def __init__(self, obj):
         self.fluid = 0
         self.trapped = False
-        self.isinsideBox = other.isinsideBox[self.indexOren]
-        self.isOnInletBdr = other.isOnInletBdr[self.indexOren]
-        self.isOnOutletBdr = other.isOnOutletBdr[self.indexOren]
+        self.isinBox = self.isinsideBox[self.indexOren]
+        self.onInletBdr = self.isOnInletBdr[self.indexOren]
+        self.onOutletBdr = self.isOnOutletBdr[self.indexOren]
         self.isOnBdr = self.isOnInletBdr | self.isOnOutletBdr
-        self.connected = other.connected[self.indexOren]
+        self.isConnected = self.connected[self.indexOren]
 
     @property
     def neighbours(self):  
@@ -483,66 +483,69 @@ class Element(object):
                 assert self.connT.size != 0
                 return self.connT
             except AssertionError:
-                return None       
+                return None    
 
-    #def __getattr__(self, name):
-     #   return getattr(self.obj, name)
+
+class Pore(Network):
+    def __new__(cls, obj, ind):
+        obj.__class__ = Pore
+        return obj
     
-
-
-class Pore:
-    def __init__(self, prop, poreCon, throatCon):
-        self.index = prop[0]
-        self.x = prop[1]
-        self.y = prop[2]
-        self.z = prop[3]
-        self.connNum = prop[4]
-        self.volume = prop[5]
-        self.r = prop[6]
-        self.G = prop[7]
-        self.clayVol = prop[8]
-        self.poreInletStat = prop[9]
-        self.poreOutletStat = prop[10]
+    def __init__(self, obj, ind):
+        self.index = ind
         self.indexOren = self.index
-        self.connP = poreCon
-        self.connT = throatCon
+        self.x = self.pore[self.index-1][1]
+        self.y = self.pore[self.index-1][2]
+        self.z = self.pore[self.index-1][3]
+        self.connNum = self.pore[self.index-1][4]
+        self.volume = self.pore[self.index-1][5]
+        self.r = self.pore[self.index-1][6]
+        self.G = self.pore[self.index-1][7]
+        self.clayVol = self.pore[self.index-1][8]
+        self.poreInletStat = self.pore[self.index-1][9]
+        self.poreOutletStat = self.pore[self.index-1][10]
+        self.connP = self.poreCon[self.index]
+        self.connT = self.throatCon[self.index]+self.nPores
         self.isPore = True
+
+
+class Throat(Network):
+    def __new__(cls, obj, ind):
+        obj.__class__ = Throat
+        return obj
     
-
-
-class Throat:
-    def __init__(self, prop, other):
-        self.index = prop[0]
-        self.P1 = prop[1]
-        self.P2 = prop[2]
-        self.r = prop[3]
-        self.G = prop[4]
-        self.LP1 = prop[5]
-        self.LP2 = prop[6]
-        self.LT = prop[7]
-        self.lenTot = prop[8]
-        self.volume = prop[9]
-        self.clayVol = prop[10]
-        self.indexOren = self.index+other.nPores
+    def __init__(self, obj, ind):
+        self.index = ind-self.nPores
+        self.indexOren = ind
+        self.P1 = self.throat[self.index-1][1]
+        self.P2 = self.throat[self.index-1][2]
+        self.r = self.throat[self.index-1][3]
+        self.G = self.throat[self.index-1][4]
+        self.LP1 = self.throat[self.index-1][5]
+        self.LP2 = self.throat[self.index-1][6]
+        self.LT = self.throat[self.index-1][7]
+        self.lenTot = self.throat[self.index-1][8]
+        self.volume = self.throat[self.index-1][9]
+        self.clayVol = self.throat[self.index-1][10]
+        
         # inlet = -1 and outlet = 0
         self.conToInlet = True if -1 in [self.P1, self.P2] else False
         self.conToOutlet =  True if 0 in [self.P1, self.P2] else False
         self.conToExit = self.conToInlet | self.conToOutlet
         self.isPore = False
-        self.LP1mod = other.LP1array_mod[self.index-1]
-        self.LP2mod = other.LP2array_mod[self.index-1]
-        self.LTmod = other.LTarray_mod[self.index-1]
+        self.LP1mod = self.LP1array_mod[self.index-1]
+        self.LP2mod = self.LP2array_mod[self.index-1]
+        self.LTmod = self.LTarray_mod[self.index-1]
         
  
         
 
 class Triangle:
-    def __init__(self, obj, ind, other):
-        self.indexOren = obj.indexOren
-        if not obj.isPore:
-            self.conToInlet = obj.conToInlet
-            self.conToOutlet = obj.conToOutlet
-            self.conToExit = obj.conToExit
+    def __new__(cls, obj):
+        obj.__class__ = Triangle
+        return obj
+
+    def __init__(self, obj):
         self.apexDist = np.zeros(3)
         self.c_exists = np.zeros(3, dtype='bool')
         self.hingAng = np.zeros(3)
@@ -550,15 +553,17 @@ class Triangle:
         self.m_initOrMinApexDistHist = np.full(3, np.inf)
         self.m_initOrMaxPcHist = np.full(3, -np.inf)
         self.m_initedApexDist = np.zeros(3)
-        self.recPc = 0.0
-        self.advPc = 0.0
-        self.indexTr = np.where(other.elemTriangle == ind)
-        self.halfAng = other.halfAnglesTr[self.indexTr]
+        
+        self.indexTr = np.where(self.elemTriangle == self.indexOren)
+        self.halfAng = self.halfAnglesTr[self.indexTr]
 
 
 class Square:
+    def __new__(cls, obj):
+        obj.__class__ = Square
+        return obj
+    
     def __init__(self, obj):
-        self.indexOren = obj.indexOren
         self.halfAng = np.array([pi/4, pi/4, pi/4, pi/4])
         self.apexDist = np.zeros(4)
         self.c_exists = np.zeros(4, dtype='bool')
@@ -567,23 +572,17 @@ class Square:
         self.m_initOrMinApexDistHist = np.full(4, np.inf)
         self.m_initOrMaxPcHist = np.full(4, -np.inf)
         self.m_initedApexDist = np.zeros(4)
-        self.recPc = 0.0
-        self.advPc = 0.0
-        if not obj.isPore:
-            self.conToInlet = obj.conToInlet
-            self.conToOutlet = obj.conToOutlet
-            self.conToExit = obj.conToExit
+        
 
-    
 class Circle:
-    def __init__(self, obj):
-        self.indexOren = obj.indexOren
-        if not obj.isPore:
-            self.conToInlet = obj.conToInlet
-            self.conToOutlet = obj.conToOutlet
-            self.conToExit = obj.conToExit
-
+    def __new__(cls, obj):
+        obj.__class__ = Circle
+        return obj
     
+    def __init__(self, obj):
+        pass
+    
+
 class Inlet:
     def __init__(self):
         self.index = -1
@@ -591,6 +590,7 @@ class Inlet:
         self.indexOren = -1
         self.connected = True
         self.isinsideBox = False
+
 
 class Outlet:
     def __init__(self, L):

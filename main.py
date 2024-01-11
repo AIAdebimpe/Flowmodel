@@ -108,6 +108,7 @@ def main():
         print("\n\n Exception on processing: \n", exc, "Aborting!\n")
         return 1
     except:
+        print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
         from IPython import embed; embed()
         print("\n\n Unknown exception! Aborting!\n")
         return 1
