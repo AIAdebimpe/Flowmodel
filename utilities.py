@@ -375,17 +375,22 @@ class Computations():
     def computePerm(self):
         gwL = self.computegL(self.gWPhase)
         self.qW = self.computeFlowrate(gwL)
-        self.obj.connW = self.conn.copy()
-        self.obj.qW = self.qW
         self.krw = self.qW/self.qwSPhase
 
+        self.obj.connW = self.conn.copy()
+        self.obj.qW = self.qW
+        self.obj.krw = self.krw
+        
         try:
             assert self.fluid[self.tList[self.isOnOutletBdr[self.tList]]].sum() > 0
             gnwL = self.computegL(self.gNWPhase)
             self.qNW = self.computeFlowrate(gnwL)
+            self.krnw = self.qNW/self.qnwSPhase
+
             self.obj.connNW = self.conn.copy()
             self.obj.qNW = self.qNW
-            self.krnw = self.qNW/self.qnwSPhase
+            self.obj.krnw = self.krnw
+    
         except AssertionError:
             self.qNW, self.krnw = 0, 0
         

@@ -40,7 +40,8 @@ def main():
         drainPlot = False
         imbibePlot = False
         probablePlot = False
-        netsim.writeData = False
+        writeData = True
+
 
         # two Phase simulations
         if input_data.satControl():
@@ -58,7 +59,7 @@ def main():
                      ) = input_data.initConAng('INIT_CONT_ANG')
                     netsim.is_oil_inj = True
                     netsim.maxPc = Pc
-                    netsim = TwoPhaseDrainage(netsim)
+                    netsim = TwoPhaseDrainage(netsim, writeData=writeData)
                     netsim.drainage()
                     
                     if drainPlot:
@@ -75,7 +76,7 @@ def main():
                      netsim.delta, netsim.eta, netsim.distModel, netsim.sepAng
                      ) = input_data.initConAng('EQUIL_CON_ANG')
                     netsim.minPc = Pc
-                    netsim = TwoPhaseImbibition(netsim)
+                    netsim = TwoPhaseImbibition(netsim, writeData=writeData)
                     netsim.imbibition()
                     if imbibePlot:
                         imbibition_results = {}

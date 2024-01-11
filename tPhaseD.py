@@ -361,9 +361,18 @@ class TwoPhaseDrainage(SinglePhase):
                 self.initOrMinApexDistHistTr.T, self.advPcTr.T,
                 self.recPcTr.T, apexDist, self.initedApexDistTr.T)
             
-            self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
-                self.elemTriangle[arrrT]] = self.do.calcAreaW(
-                arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT) 
+            #self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
+             #   self.elemTriangle[arrrT]] = self.do.calcAreaW(
+              #  arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
+            
+            cornA, cornG = self.do.calcAreaW(
+                arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
+            
+            condlist = (cornA < self._cornArea[self.elemTriangle[arrrT]])
+            self._cornArea[self.elemTriangle[arrrT][condlist]] = cornA[condlist]
+
+            condlist = (cornG < self._cornCond[self.elemTriangle[arrrT]])
+            self._cornCond[self.elemTriangle[arrrT][condlist]] = cornG[condlist]
         except AssertionError:
             pass
 
@@ -383,9 +392,18 @@ class TwoPhaseDrainage(SinglePhase):
                 self.initOrMinApexDistHistSq.T, self.advPcSq.T,
                 self.recPcSq.T, apexDist, self.initedApexDistSq.T)
             
-            self._cornArea[self.elemSquare[arrrS]], self._cornCond[
-                self.elemSquare[arrrS]] = self.do.calcAreaW(
+            #self._cornArea[self.elemSquare[arrrS]], self._cornCond[
+             #   self.elemSquare[arrrS]] = self.do.calcAreaW(
+              #  arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
+            
+            cornA, cornG = self.do.calcAreaW(
                 arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
+            
+            condlist = (cornA < self._cornArea[self.elemSquare[arrrS]])
+            self._cornArea[self.elemSquare[arrrS][condlist]] = cornA[condlist]
+
+            condlist = (cornG < self._cornCond[self.elemSquare[arrrS]])
+            self._cornCond[self.elemSquare[arrrS][condlist]] = cornG[condlist]
         except AssertionError:
             pass
         try:
@@ -430,7 +448,7 @@ class TwoPhaseDrainage(SinglePhase):
         result_dir = "./results_csv/"
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
         while True:         
-            file_name = os.path.join(result_dir, "FlowmodelOOP_"+
+            file_name = os.path.join(result_dir, "Flowmodel_"+
                                 self.title+"_Drainage_"+str(self._num)+".csv")
             if os.path.isfile(file_name): self._num += 1
             else:

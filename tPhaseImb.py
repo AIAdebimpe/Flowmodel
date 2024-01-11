@@ -78,11 +78,13 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
     
     def imbibition(self):
         start = time()
-        if self.writeData: self.__writeHeadersI__()
-        else: self.resultI_str = ""
-
         print('--------------------------------------------------------------')
         print('-----------------------Two Phase Imbibition Process-----------')
+
+        if self.writeData: self.__writeHeadersI__()
+        else:
+            self.resultI_str = ""
+            self.do.writeResult(self.resultI_str, self.capPresMax)
 
         self.SwTarget = min(self.finalSat, self.satW+self.dSw*0.5)
         self.PcTarget = max(self.minPc, self.capPresMin-(
@@ -253,9 +255,18 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.initOrMinApexDistHistSq.T, self.advPcSq.T,
                 self.recPcSq.T, apexDist, self.initedApexDistSq.T)
             
-            self._cornArea[self.elemSquare[arrrS]], self._cornCond[
-                self.elemSquare[arrrS]] = self.do.calcAreaW(
+            #self._cornArea[self.elemSquare[arrrS]], self._cornCond[
+             #   self.elemSquare[arrrS]] = self.do.calcAreaW(
+              #  arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
+            
+            cornA, cornG = self.do.calcAreaW(
                 arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
+            
+            condlist = (cornA < self._cornArea[self.elemSquare[arrrS]])
+            self._cornArea[self.elemSquare[arrrS][condlist]] = cornA[condlist]
+
+            condlist = (cornG < self._cornCond[self.elemSquare[arrrS]])
+            self._cornCond[self.elemSquare[arrrS][condlist]] = cornG[condlist]
         except AssertionError:
             pass
 
@@ -269,9 +280,18 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.initOrMinApexDistHistTr.T, self.advPcTr.T,
                 self.recPcTr.T, apexDist, self.initedApexDistTr.T)
             
-            self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
-                self.elemTriangle[arrrT]] = self.do.calcAreaW(
+            #self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
+             #   self.elemTriangle[arrrT]] = self.do.calcAreaW(
+              #  arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
+            
+            cornA, cornG = self.do.calcAreaW(
                 arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
+            
+            condlist = (cornA > self._cornArea[self.elemTriangle[arrrT]])
+            self._cornArea[self.elemTriangle[arrrT][condlist]] = cornA[condlist]
+
+            condlist = (cornG > self._cornCond[self.elemTriangle[arrrT]])
+            self._cornCond[self.elemTriangle[arrrT][condlist]] = cornG[condlist]
         except AssertionError:
             pass
 
@@ -739,7 +759,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
     def __writeHeadersI__(self):
         result_dir = "./results_csv/"   
-        self.file_name = os.path.join(result_dir, "FlowmodelOOP_"+
+        self.file_name = os.path.join(result_dir, "Flowmodel_"+
                             self.title+"_Imbibition_"+str(self._num)+".csv")
 
         self.resultI_str="======================================================================\n"
@@ -765,6 +785,9 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         
         self.resultI_str+="\n======================================================================"
         self.resultI_str+="\n# Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions"
+
+        self.totNumFill = 0
+        self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMax)
 
         
         
