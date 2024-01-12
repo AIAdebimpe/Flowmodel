@@ -69,7 +69,7 @@ class Network(InputData):
         self.writeData()
         print('time taken:   ', time()-st)
         del self.pore, self.throat, self.poreCon, self.throatCon
-        #from IPython import embed; embed()
+        
 
 
     def __readNetworkFiles__(self):
@@ -442,7 +442,6 @@ class Network(InputData):
     def __porosity__(self):
         volTotal = self.volarray[self.isinsideBox].sum() 
         clayvolTotal = self.ClayVolarray[self.isinsideBox].sum()
-
         self.totBoxVolume = (self.xend-self.xstart)*self.Area_
         self.porosity = (volTotal+clayvolTotal)/self.totBoxVolume
         self.totVoidVolume = volTotal+clayvolTotal

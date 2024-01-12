@@ -133,8 +133,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         print("Number of trapped elements: ", self.trappedNW.sum())
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
-        del self.do
-        #from IPython import embed; embed()
+
 
     def __PImbibition__(self):
         self.totNumFill = 0

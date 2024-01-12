@@ -943,18 +943,4 @@ class Computations():
         return result_str
 
 
-
-
-@nb.njit((int64[:], int64[:], int64[:,:], float64[:]))
-def getValue1(indP, indT, PTConData, gL):
-    row: int64[:]; col:int64[:]; data:float64[:]
-    
-    row = [1]
-    col = [1]
-    data = [0.001]
-    for m, p in enumerate(indP):
-        #for t in PTConData[p]:
-         #   if t in indT:
-        cond = 0
-    
         
