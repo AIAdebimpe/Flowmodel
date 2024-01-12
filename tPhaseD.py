@@ -152,7 +152,6 @@ class TwoPhaseDrainage(SinglePhase):
         print(self.rpd, self.sigma, self.maxPc)
         print('Time spent for the drainage process: ', time() - start)        
         print('==========================================================\n\n')
-        del self.do
 
 
     def popUpdateOilInj(self):

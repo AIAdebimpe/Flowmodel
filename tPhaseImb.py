@@ -16,8 +16,9 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         obj.__class__ = TwoPhaseImbibition
         return obj
     
-    def __init__(self, obj, writeData=False):        
-        self.do = Computations(self)
+    def __init__(self, obj, writeData=False):
+        if not hasattr(self, 'do'):     
+            self.do = Computations(self)
     
         self.porebodyPc = np.zeros(self.totElements)
         self.snapoffPc = np.zeros(self.totElements)
