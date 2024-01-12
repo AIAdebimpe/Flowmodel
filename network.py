@@ -68,6 +68,7 @@ class Network(InputData):
         self.nCircles = self.elemCircle.size
         self.writeData()
         print('time taken:   ', time()-st)
+        del self.pore, self.throat, self.poreCon, self.throatCon
         #from IPython import embed; embed()
 
 
