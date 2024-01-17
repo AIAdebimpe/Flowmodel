@@ -930,12 +930,12 @@ class Computations():
                     m_inited, m_initOrMaxPcHist, m_initOrMinApexDistHist,
                     advPc, recPc, apexDist, m_initedApexDist, trapped):
 
-        cond = (m_inited | (~trapped[arr])) & m_exists
+        cond = arrr & (m_inited | (~trapped[arr])) & m_exists
         conAng = self.thetaRecAng.copy() if self.is_oil_inj else self.thetaAdvAng.copy()
         conAng, apexDist = self.cornerApex(
             arr, arrr, halfAng, Pc, conAng, 
             cond, m_initOrMaxPcHist, m_initOrMinApexDistHist,
-            advPc, recPc, apexDist, m_initedApexDist)
+            advPc, recPc, apexDist, m_initedApexDist, overidetrapping=True)
         
         apexDist = apexDist.T
         recPc[cond] = self.sigma*np.cos((np.minimum(np.pi, self.thetaRecAng[
@@ -957,7 +957,8 @@ class Computations():
     def initCornerApex(self, arr, arrr, halfAng, m_exists, m_inited,
                        recPc, advPc, m_initedApexDist, trapped):
     
-        cond =  (m_exists & (~trapped[arr, np.newaxis]))
+        #from IPython import embed; embed()
+        cond =  (m_exists & (arrr&~trapped[arr])[:, np.newaxis])
         m_inited[cond] = True
         Pc = self.sigma*np.cos(np.minimum(np.pi, self.thetaRecAng[
             arr, np.newaxis]+halfAng))/(m_initedApexDist*np.sin(halfAng))

@@ -20,6 +20,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         if not hasattr(self, 'do'):     
             self.do = Computations(self)
 
+        self._updateCornerApex_()
+
         self.trapped = self.trappedNW
         self.trappedPc = self.trappedNW_Pc
         self.trapClust = self.trapCluster_NW
@@ -31,11 +33,12 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.fluid[[-1, 0]] = 0, 1  
         self.fillmech = np.full(self.totElements, -5)
 
-        self._updateCornerApex_()
+        #from IPython import embed; embed()
         self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
         self.capPresMin = self.maxPc
         self.contactAng, self.thetaRecAng, self.thetaAdvAng =\
             self.do.__wettabilityDistribution__()
+        self.is_oil_inj = False
         self.__initCornerApex__()
         self.__computePistonPc__()
         self.__computePc__(self.maxPc, self.elementLists, False)
@@ -44,8 +47,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self._areaNWP = self._centerArea.copy()
         self._condWP = self._cornCond.copy()
         self._condNWP = self._centerCond.copy()
-
-        self.is_oil_inj = False
         self.writeData = writeData
 
     @property
@@ -104,7 +105,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         while self.filling:
         
             self.__PImbibition__()
-            print(self.fw)
 
             if (self.PcTarget < self.minPc+0.001) or (
                  self.satW > self.finalSat-0.00001):
@@ -360,20 +360,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self._condNWP[cond3] = self.gnwSPhase[cond3]
         except AssertionError:
             pass
-        
-    
-    def __initCornerApex__(self):
-        arrr = ((self.fluid == 1) & (~self.trappedW))
-        arrrS = arrr[self.elemSquare]
-        arrrT = arrr[self.elemTriangle]
-        
-        self.do.initCornerApex(
-            self.elemTriangle, arrrT, self.halfAnglesTr, self.cornExistsTr, self.initedTr,
-            self.recPcTr, self.advPcTr, self.initedApexDistTr, self.trappedW)
-    
-        self.do.initCornerApex(
-            self.elemSquare, arrrS, self.halfAnglesSq, self.cornExistsSq, self.initedSq,
-            self.recPcSq, self.advPcSq, self.initedApexDistSq, self.trappedW)
         
     
     def __computePistonPc__(self):

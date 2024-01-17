@@ -350,7 +350,7 @@ class TwoPhaseDrainage(SinglePhase):
         # to suppress the FutureWarning and SettingWithCopyWarning respectively
         warnings.simplefilter(action='ignore', category=FutureWarning)
         pd.options.mode.chained_assignment = None
-        
+
         arrr = ((self.fluid == 1) & (~self.trappedW))
         arrrS = arrr[self.elemSquare]
         arrrT = arrr[self.elemTriangle]
@@ -367,7 +367,8 @@ class TwoPhaseDrainage(SinglePhase):
                         self.initOrMinApexDistHistTr, self.advPcTr,
                         self.recPcTr, self.initedApexDistTr)
             
-            apexDist = np.empty_like(self.hingAngTr.T)
+            #apexDist = np.empty_like(self.hingAngTr.T)
+            apexDist = np.zeros(self.hingAngTr.T.shape)
             conAngPT, apexDistPT = self.do.cornerApex(
                 self.elemTriangle, arrrT, self.halfAnglesTr.T, self.capPresMax,
                 curConAng, self.cornExistsTr.T, self.initOrMaxPcHistTr.T,
@@ -437,7 +438,9 @@ class TwoPhaseDrainage(SinglePhase):
 
 
     def _updateCornerApex_(self):
-        arrr = ((self.fluid == 1) & (~self.trappedW))
+        trapped = (self.trappedW | self.trappedNW)
+        #arrr = ((self.fluid == 1) & (~self.trappedW))
+        arrr = ((self.fluid == 1) & (~trapped))
         arrrS = arrr[self.elemSquare]
         arrrT = arrr[self.elemTriangle]
        
@@ -446,15 +449,31 @@ class TwoPhaseDrainage(SinglePhase):
             self.elemTriangle, arrrT, self.halfAnglesTr.T, self.maxPc,
             self.cornExistsTr.T, self.initedTr.T, self.initOrMaxPcHistTr.T,
             self.initOrMinApexDistHistTr.T, self.advPcTr.T,
-            self.recPcTr.T, apexDist, self.initedApexDistTr.T, self.trappedW)
+            #self.recPcTr.T, apexDist, self.initedApexDistTr.T, self.trappedW)
+            self.recPcTr.T, apexDist, self.initedApexDistTr.T, trapped)
     
         apexDist = np.zeros(self.cornExistsSq.T.shape)
         self.do.finitCornerApex(
             self.elemSquare, arrrS, self.halfAnglesSq[:, np.newaxis], self.maxPc,
             self.cornExistsSq.T, self.initedSq.T, self.initOrMaxPcHistSq.T,
             self.initOrMinApexDistHistSq.T, self.advPcSq.T,
-            self.recPcSq.T, apexDist, self.initedApexDistSq.T, self.trappedW)
+            #self.recPcSq.T, apexDist, self.initedApexDistSq.T, self.trappedW)
+            self.recPcSq.T, apexDist, self.initedApexDistSq.T, trapped)
 
+
+    def __initCornerApex__(self):
+        arrr = ((self.fluid == 1) & (~self.trappedW))
+        arrrS = arrr[self.elemSquare]
+        arrrT = arrr[self.elemTriangle]
+        
+        self.do.initCornerApex(
+            self.elemTriangle, arrrT, self.halfAnglesTr, self.cornExistsTr, self.initedTr,
+            self.recPcTr, self.advPcTr, self.initedApexDistTr, self.trappedW)
+    
+        self.do.initCornerApex(
+            self.elemSquare, arrrS, self.halfAnglesSq, self.cornExistsSq, self.initedSq,
+            self.recPcSq, self.advPcSq, self.initedApexDistSq, self.trappedW)
+        
 
     def __writeHeadersD__(self):
         self._num = 1
