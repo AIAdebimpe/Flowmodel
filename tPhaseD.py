@@ -21,6 +21,18 @@ class TwoPhaseDrainage(SinglePhase):
         self.fluid[-1] = 1   # already filled
         self.trappedW = np.zeros(self.totElements, dtype='bool')
         self.trappedNW = np.zeros(self.totElements, dtype='bool')
+        self.trappedW_Pc = np.zeros(self.totElements)
+        self.trappedNW_Pc = np.zeros(self.totElements)
+        self.trapCluster_W = np.zeros(self.totElements, dtype='int')
+        self.trapCluster_NW = np.zeros(self.totElements, dtype='int')
+
+        #from IPython import embed; embed()
+        self.trapped = self.trappedW
+        self.trappedPc = self.trappedW_Pc
+        self.trapClust = self.trapCluster_W
+        self.connW = self.connected.copy()
+        self.connNW = np.zeros(self.totElements, dtype='bool')
+
         self.contactAng, self.thetaRecAng, self.thetaAdvAng =\
             self.do.__wettabilityDistribution__()
         self.Fd_Tr = self.do.__computeFd__(self.elemTriangle, self.halfAnglesTr)
@@ -87,11 +99,11 @@ class TwoPhaseDrainage(SinglePhase):
     
     def drainage(self):
         start = time()
-        if self.writeData: self.__writeHeadersD__()
-        else: self.resultD_str = ""
-
         print('--------------------------------------------------------------')
         print('---------------------Two Phase Drainage Process---------------')
+
+        if self.writeData: self.__writeHeadersD__()
+        else: self.resultD_str = ""
 
         self.SwTarget = max(self.finalSat, self.satW-self.dSw*0.5)
         self.PcTarget = min(self.maxPc, self.capPresMax+(
@@ -146,12 +158,12 @@ class TwoPhaseDrainage(SinglePhase):
 
         self.maxPc = self.capPresMax
         self.rpd = self.sigma/self.maxPc
-        print("Number of trapped elements: ", self.trappedW.sum())
-        #val, count = np.unique(self.clusterP, return_counts=True)
-        #val, count = np.unique(self.clusterT, return_counts=True)
+        print("Number of trapped elements: W: {}  NW:{}".format(
+            self.trappedW.sum(), self.trappedNW.sum()))
         print(self.rpd, self.sigma, self.maxPc)
         print('Time spent for the drainage process: ', time() - start)        
         print('==========================================================\n\n')
+        #from IPython import embed; embed()
 
 
     def popUpdateOilInj(self):
@@ -162,13 +174,15 @@ class TwoPhaseDrainage(SinglePhase):
         try:
             assert k > self.nPores
             ElemInd = k-self.nPores
-            assert not self.do.isTrapped(k, 0, self.trappedW)
+            assert not self.do.isTrapped(k, 0, self.capPresMax)
             self.fluid[k] = 1
             self.PistonPcRec[k] = self.centreEPOilInj[k]
             ppp = np.array([self.P1array[ElemInd-1], self.P2array[
                 ElemInd-1]])
-            p = ppp[(self.fluid[ppp] == 0) & ~(self.trappedW[ppp])]
-            [*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), p)]
+            p = ppp[(self.fluid[ppp] == 0) & ~(self.trappedW[ppp]) & (ppp>0)]
+            [*map(lambda i: 
+                  self.do.isTrapped(i, 0, self.capPresMax), p)]
+            #[*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), p)]
 
             self.cntT += 1
             self.invInsideBox += self.isinsideBox[k]
@@ -178,12 +192,12 @@ class TwoPhaseDrainage(SinglePhase):
 
         try:
             assert k <= self.nPores
-            assert not self.do.isTrapped(k, 0, self.trappedW)
+            assert not self.do.isTrapped(k, 0, self.capPresMax)
             self.fluid[k] = 1
             self.PistonPcRec[k] = self.centreEPOilInj[k]
             thr = self.PTConData[k]+self.nPores
             thr = thr[(self.fluid[thr] == 0) & ~(self.trappedW[thr])]
-            [*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), thr)]
+            [*map(lambda i: self.do.isTrapped(i, 0, self.capPresMax), thr)]
 
             self.cntP += 1
             self.invInsideBox += self.isinsideBox[k]
@@ -478,3 +492,5 @@ class TwoPhaseDrainage(SinglePhase):
         
         self.resultD_str+="\n======================================================================"
         self.resultD_str+="\n# Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions"
+
+

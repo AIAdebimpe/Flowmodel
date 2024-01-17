@@ -18,6 +18,7 @@ class Computations():
 
     def __init__(self, obj):
         self.obj = obj
+        self.isPolygon = (self.Garray <= self.bndG2)
     
     def __getattr__(self, name):
         return getattr(self.obj, name)
@@ -105,7 +106,48 @@ class Computations():
         return connected
 
 
-    def isTrapped(self, i, fluid, trapped):
+    #def isTrapped(self, i, fluid, Pc, trapped, trappedPc, trapClust):
+    def isTrapped(self, i, fluid, Pc):
+        try:
+            assert self.trapped[i]
+            return True
+        except AssertionError:
+            try:
+                assert fluid
+                Notdone = (self.fluid==fluid)
+            except AssertionError:
+                Notdone = (self.fluid==0)|self.isPolygon
+        
+        Notdone[[i, -1, 0]] = False, True, True
+        arrlist = [i]
+        arr = np.zeros(self.totElements, dtype='bool')
+        arr[i] = True
+    
+        while True:
+            try:
+                i = arrlist.pop(np.argmin(self.distToBoundary[arrlist]))
+                assert i>0
+                Notdone[i] = False
+                arr[i] = True
+                tt = self.PTConData[i]+self.nPores
+                arrlist.extend(tt[Notdone[tt]])
+            except IndexError:
+                pp = np.array([self.P1array[i-self.nPores-1],
+                               self.P2array[i-self.nPores-1]])
+                arrlist.extend(pp[Notdone[pp]])
+            except AssertionError:
+                return False
+            
+            try:
+                assert len(arrlist)>0
+            except AssertionError:
+                self.trapped[arr] = True
+                self.trappedPc[arr] = Pc
+                self.trapClust[arr] = self.trapClust.max()+1
+                return True
+                
+
+    def isTrapped1(self, i, fluid, trapped):
         try:
             assert trapped[i]
             return True
@@ -182,6 +224,7 @@ class Computations():
                         pass
                     
                     return True
+
 
 
     def getValue(self, arrr, gL):
@@ -344,14 +387,12 @@ class Computations():
     
 
     def computeFlowrate(self, gL):
-        #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
         arrPoreList = np.zeros(self.nPores+2, dtype='bool')
         arrPoreList[self.P1array[(gL > 0.0)]] = True
         arrPoreList[self.P2array[(gL > 0.0)]] = True
         indPS = self.poreList[arrPoreList[1:-1]]
         indTS = self.throatList[(gL > 0.0)]
         self.conn = self.isConnected(indPS, indTS)
-
         Amatrix, Cmatrix = self.__getValue__(self.conn, gL)
 
         #from IPython import embed; embed()
@@ -374,23 +415,20 @@ class Computations():
     
     def computePerm(self):
         gwL = self.computegL(self.gWPhase)
-        self.qW = self.computeFlowrate(gwL)
-        self.krw = self.qW/self.qwSPhase
-
-        self.obj.connW = self.conn.copy()
-        self.obj.qW = self.qW
-        self.obj.krw = self.krw
+        self.obj.qW = self.qW = self.computeFlowrate(gwL)
+        self.obj.krw = self.krw = self.krw = self.qW/self.qwSPhase
+        self.trapCluster_W[self.conn] = 0
+        self.trappedW[self.conn] = False
+        self.connW[:] = self.conn
         
         try:
             assert self.fluid[self.tList[self.isOnOutletBdr[self.tList]]].sum() > 0
             gnwL = self.computegL(self.gNWPhase)
-            self.qNW = self.computeFlowrate(gnwL)
-            self.krnw = self.qNW/self.qnwSPhase
-
-            self.obj.connNW = self.conn.copy()
-            self.obj.qNW = self.qNW
-            self.obj.krnw = self.krnw
-    
+            self.obj.qNW = self.qNW = self.computeFlowrate(gnwL)
+            self.obj.krnw = self.krnw = self.qNW/self.qnwSPhase
+            self.trapCluster_NW[self.conn] = 0
+            self.trappedNW[self.conn] = False
+            self.connNW[:] = self.conn
         except AssertionError:
             self.qNW, self.krnw = 0, 0
         

@@ -19,6 +19,10 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
     def __init__(self, obj, writeData=False):
         if not hasattr(self, 'do'):     
             self.do = Computations(self)
+
+        self.trapped = self.trappedNW
+        self.trappedPc = self.trappedNW_Pc
+        self.trapClust = self.trapCluster_NW
     
         self.porebodyPc = np.zeros(self.totElements)
         self.snapoffPc = np.zeros(self.totElements)
@@ -100,6 +104,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         while self.filling:
         
             self.__PImbibition__()
+            print(self.fw)
 
             if (self.PcTarget < self.minPc+0.001) or (
                  self.satW > self.finalSat-0.00001):
@@ -130,10 +135,12 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             with open(self.file_name, 'a') as fQ:
                 fQ.write(self.resultI_str)
 
-        print("Number of trapped elements: ", self.trappedNW.sum())
+        self.renumCluster()
+        print("Number of trapped elements: W: {}  NW:{}".format(
+            self.trappedW.sum(), self.trappedNW.sum()))
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
-
+    
 
     def __PImbibition__(self):
         self.totNumFill = 0
@@ -190,8 +197,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         try:
             assert k > self.nPores
             ElemInd = k-self.nPores
-            assert not self.do.isTrapped(k, 1, self.trappedNW)
-            #print(k, capPres, self.capPresMin)
+            assert not self.do.isTrapped(k, 1, self.capPresMin)
             self.fluid[k] = 0
             self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres)+3*(
                 self.snapoffPc[k] == capPres)
@@ -200,22 +206,20 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
             ppp = np.array([self.P1array[ElemInd-1], self.P2array[
                 ElemInd-1]])
-            ppp = ppp[(ppp > 0)]
-            pp = ppp[(self.fluid[ppp] == 1) & ~(self.trappedNW[ppp])]
+            pp = ppp[(self.fluid[ppp] == 1)&(~self.trappedNW[ppp])&(ppp>0)]
             
             # update Pc and the filling list
             assert pp.size > 0
-            [*map(lambda i: self.do.isTrapped(i, 1, self.trappedNW), pp)]
+            [*map(lambda i: self.do.isTrapped(i, 1, self.capPresMin), pp)]
             self.__computePc__(self.capPresMin, pp)
-              
+
         except AssertionError:
             pass
 
         try:
             assert k <= self.nPores
             ElemInd = k
-            assert not self.do.isTrapped(k, 1, self.trappedNW)
-            #print(k, capPres, self.capPresMin)
+            assert not self.do.isTrapped(k, 1, self.capPresMin)
             self.fluid[k] = 0
             self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres) + 2*(
                 self.porebodyPc[k] == capPres) + 3*(
@@ -228,7 +232,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
             # update Pc and the filling list
             assert tt.size > 0
-            [*map(lambda i: self.do.isTrapped(i, 1, self.trappedNW), tt)]
+            [*map(lambda i: self.do.isTrapped(i, 1, self.capPresMin), tt)]
             self.__computePc__(self.capPresMin, tt)
 
         except AssertionError:
@@ -788,6 +792,13 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
         self.totNumFill = 0
         self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMax)
+
+
+    def renumCluster(self):
+        numOld = np.unique(self.trapCluster_W)
+        for ind, v in enumerate(numOld):
+            self.trapCluster_W[self.trapCluster_W==v] = ind
+        
 
         
         
