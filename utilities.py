@@ -639,14 +639,42 @@ class Computations():
 
         apexDist[~m_exists & arrr] = self.MOLECULAR_LENGTH
         delta = 0.0 if accurat else self._delta
+        # update the apex dist and contact angle
+        conAng = np.ones(m_exists.shape)*conAng[arr]
+
         try:
             assert not overidetrapping
             apexDist[:, arrr] = initedApexDist[:, arrr]
+            assert self.trappedW[arr[arrr]].sum()+self.trappedNW[arr[arrr]].sum()>0
+
+            trappedPc = self.trappedW_Pc[arr]
+            cond = (~self.trappedW[arr]) & self.trappedNW[arr] & arrr
+            trappedPc[cond] = self.trappedNW_Pc[arr[cond]]
+            cond = (self.trappedW[arr]|self.trappedNW[arr])
+            
+            part = np.maximum(-0.999999, np.minimum(
+                0.999999, (trappedPc*initedApexDist*np.sin(
+                    halfAng)).T[cond]/self.sigma))
+            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+            #from IPython import embed; embed()
+            #print(conAng.T[cond])
+            try:
+                conAng.T[cond] = np.minimum(np.maximum(np.arccos(part)-halfAng.T[cond], 0.0), np.pi)
+            except IndexError:
+                conAng.T[cond] = np.minimum(np.maximum(np.arccos(part)-halfAng.T, 0.0), np.pi)
+            #print('££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££')
+            #print(conAng.T[cond])
+
+            #part(pc*m_initedApexDist*sin(halfAng)/intfacTen)
+			#part = std::min(part, 0.999999)
+			#part = std::max(part, -0.999999)
+			#double hingAng(acos(part)-halfAng)
+			#ensure(hingAng >= -SMALL_NUM && hingAng <=  PI+SMALL_NUM)
+			#conAng = (std::min(std::max(hingAng, 0.0), PI))
         except AssertionError:
             pass
 
-        # update the apex dist and contact angle
-        conAng = np.ones(m_exists.shape)*conAng[arr]
+        
         
         # condition 1
         #print('condition 1')
@@ -753,143 +781,6 @@ class Computations():
             pass
         
         return conAng.T, apexDist.T
-
-        
-        
-
-        
-    def cornerApex1(self, arr, arrr, halfAng, Pc, conAng, m_exists,
-               m_initOrMaxPcHist, m_initOrMinApexDistHist, advPc,
-               recPc, apexDist, initedApexDist, hingAng, accurat=False,
-               overidetrapping=False):
-        warnings.simplefilter(action='ignore', category=RuntimeWarning)
-    
-        from IPython import embed; embed()
-        try:
-            apexDist[~m_exists & arrr[:, np.newaxis]] = self.MOLECULAR_LENGTH
-        except IndexError:
-            apexDist[~m_exists & arrr] = self.MOLECULAR_LENGTH
-        
-        delta = 0.0 if accurat else self._delta
-        try:
-            assert not overidetrapping
-            apexDist[arrr] = initedApexDist[arrr]
-        except AssertionError:
-            pass
-
-        # update the apex dist and contact angle
-        try:
-            conAng = np.array([conAng[arr]]*hingAng.shape[1]).T
-        except IndexError:
-            conAng = conAng[arr]
-        
-        # condition 1
-        #print('condition 1')
-        cond1a = m_exists & (advPc-delta <= Pc) & (Pc <= recPc+delta)
-        try:
-            cond1 = cond1a & arrr
-        except ValueError:
-            cond1 = cond1a & arrr[:, np.newaxis]
-        try:
-            assert cond1.sum() > 0
-            if not self.is_oil_inj: print('  cond1  ')
-            part = np.minimum(0.999999, np.maximum(
-                Pc*initedApexDist*np.sin(halfAng)/self.sigma,
-                -0.999999))
-            hingAng[cond1] = np.minimum(np.maximum(
-                (np.arccos(part)-halfAng)[cond1], -self._delta),
-                np.pi+self._delta)
-            conAng[cond1] = np.minimum(np.maximum(hingAng[cond1], 0.0), np.pi)
-            apexDist[cond1] = initedApexDist[cond1]
-        except AssertionError:
-            pass
-        
-        # condition 2
-        #print('condition 2')
-        cond2a = m_exists & ~cond1a & (Pc < advPc)
-        try:
-            cond2 = cond2a & arrr
-        except ValueError:
-            cond2 = cond2a & arrr[:, np.newaxis]
-        try:
-            assert cond2.sum() > 0
-            if not self.is_oil_inj: print('  cond2  ')
-            conAng[cond2] = ((self.thetaAdvAng[arr]*cond2.T).T)[cond2]
-            try:
-                apexDist[cond2] = (self.sigma/Pc[cond2])*np.cos(
-                    conAng[cond2]+halfAng[cond2])/np.sin(halfAng[cond2])
-            except (TypeError, IndexError):
-                apexDist[cond2] = (self.sigma/Pc*np.cos(
-                    conAng+halfAng)/np.sin(halfAng))[cond2]
-
-            cond2b = (apexDist < initedApexDist) & cond2
-            assert cond2b.sum() > 0
-            print('  cond2b  ')
-            part = np.minimum(0.999999, np.maximum(
-                Pc*initedApexDist*np.sin(halfAng)/self.sigma, -0.999999))
-            hingAng[cond2b] = np.minimum(np.maximum(
-                (np.arccos(part)-halfAng)[cond2b], 0.0), np.pi)
-            
-            conAng[cond2b] = hingAng[cond2b]
-            apexDist[cond2b] = initedApexDist[cond2b]
-        except AssertionError:
-            pass
-
-        # condition 3
-        #print('  condition 3   ')
-        cond3a = m_exists & ~cond1a & ~cond2a & (Pc > m_initOrMaxPcHist)
-        try:
-            cond3 = cond3a & arrr
-        except ValueError:
-            cond3 = cond3a & arrr[:, np.newaxis]
-        try:
-            assert cond3.sum() > 0
-            if not self.is_oil_inj: print('  cond3  ')
-            try:
-                conAng[cond3] = np.minimum(np.pi, self.thetaRecAng[arr][cond3])
-                apexDist[cond3] = (self.sigma/Pc*np.cos(
-                    conAng+halfAng)/np.sin(halfAng))[cond3]
-            except IndexError:
-                conAng[cond3] = (np.minimum(np.pi, self.thetaRecAng[
-                    arr, np.newaxis])*cond3)[cond3]
-                apexDist[cond3] = (self.sigma/Pc*np.cos(
-                    conAng+halfAng)/np.sin(halfAng))[cond3]
-        except AssertionError:
-            pass
-
-        # condition 4
-        cond4a = m_exists & ~cond1 & ~cond2a & ~cond3a & (Pc > recPc)
-        try:
-            cond4 = (cond4a.T*arrr).T
-        except ValueError:
-            cond4 = (cond4a*arrr)
-        except:
-            print(' condition 4  ')
-        try:
-            assert cond4.sum() > 0
-            if not self.is_oil_inj: print('  cond4  ')
-            conAng[cond4] = self.thetaRecAng[arr[cond4]]
-            print('Im in condition 4')
-            from IPython import embed; embed()
-        except AssertionError:
-            pass
-
-        # condition 5
-        #print('  condition 5  ')
-        cond5 = m_exists & ~cond1 & ~cond2 & ~cond3a & ~cond4a
-        try:
-            cond5 = (cond5.T*arrr).T
-        except ValueError:
-            cond5 = (cond5*arrr)
-        try:
-            assert cond5.sum() > 0
-            if not self.is_oil_inj: print('  cond5  ')
-            apexDist[cond5] = ((self.sigma/Pc)*np.cos(
-                conAng+halfAng)/np.sin(halfAng))[cond5]
-        except AssertionError:
-            pass
-        
-        return conAng, apexDist
 
 
     def calcAreaW(self, arrr, halfAng, conAng, m_exists, apexDist):

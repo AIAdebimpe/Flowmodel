@@ -351,7 +351,8 @@ class TwoPhaseDrainage(SinglePhase):
         warnings.simplefilter(action='ignore', category=FutureWarning)
         pd.options.mode.chained_assignment = None
 
-        arrr = ((self.fluid == 1) & (~self.trappedW))
+        #arrr = ((self.fluid == 1) & (~self.trappedW))
+        arrr = (self.fluid == 1)
         arrrS = arrr[self.elemSquare]
         arrrT = arrr[self.elemTriangle]
         arrrC = arrr[self.elemCircle]
