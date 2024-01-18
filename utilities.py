@@ -655,27 +655,14 @@ class Computations():
             part = np.maximum(-0.999999, np.minimum(
                 0.999999, (trappedPc*initedApexDist*np.sin(
                     halfAng)).T[cond]/self.sigma))
-            #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-            #from IPython import embed; embed()
-            #print(conAng.T[cond])
             try:
                 conAng.T[cond] = np.minimum(np.maximum(np.arccos(part)-halfAng.T[cond], 0.0), np.pi)
             except IndexError:
                 conAng.T[cond] = np.minimum(np.maximum(np.arccos(part)-halfAng.T, 0.0), np.pi)
-            #print('££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££££')
-            #print(conAng.T[cond])
-
-            #part(pc*m_initedApexDist*sin(halfAng)/intfacTen)
-			#part = std::min(part, 0.999999)
-			#part = std::max(part, -0.999999)
-			#double hingAng(acos(part)-halfAng)
-			#ensure(hingAng >= -SMALL_NUM && hingAng <=  PI+SMALL_NUM)
-			#conAng = (std::min(std::max(hingAng, 0.0), PI))
+            
         except AssertionError:
             pass
 
-        
-        
         # condition 1
         #print('condition 1')
         cond1a = m_exists & (advPc-delta <= Pc) & (Pc <= recPc+delta)
