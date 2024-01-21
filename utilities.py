@@ -8,9 +8,6 @@ from scipy.sparse import csr_matrix
 import warnings
 import numba as nb
 from numba import int64, float64
-
-#dirname = os.path.dirname(os.path.realpath(__file__))
-#sys.path.insert(0, dirname)
 from solver import Solver
 
 
@@ -106,7 +103,6 @@ class Computations():
         return connected
 
 
-    #def isTrapped(self, i, fluid, Pc, trapped, trappedPc, trapClust):
     def isTrapped(self, i, fluid, Pc):
         try:
             assert self.trapped[i]
@@ -803,6 +799,43 @@ class Computations():
         cornerArea = area.sum(axis=1)
 
         return cornerArea[arrr], cornerCond[arrr]
+
+
+    def __finitCornerApex__(self, pc):
+        trapped = (self.trappedW | self.trappedNW)
+        arrr = self.connected
+        arrrS = arrr[self.elemSquare]
+        arrrT = arrr[self.elemTriangle]
+       
+        apexDist = np.zeros(self.cornExistsTr.T.shape)
+        self.finitCornerApex(
+            self.elemTriangle, arrrT, self.halfAnglesTr.T, pc,
+            self.cornExistsTr.T, self.initedTr.T, self.initOrMaxPcHistTr.T,
+            self.initOrMinApexDistHistTr.T, self.advPcTr.T,
+            self.recPcTr.T, apexDist, self.initedApexDistTr.T, trapped)
+    
+        apexDist = np.zeros(self.cornExistsSq.T.shape)
+        self.finitCornerApex(
+            self.elemSquare, arrrS, self.halfAnglesSq[:, np.newaxis], pc,
+            self.cornExistsSq.T, self.initedSq.T, self.initOrMaxPcHistSq.T,
+            self.initOrMinApexDistHistSq.T, self.advPcSq.T,
+            self.recPcSq.T, apexDist, self.initedApexDistSq.T, trapped)
+
+
+    def __initCornerApex__(self):
+        trapped = (self.trappedW | self.trappedNW)
+        arrr = self.connected
+        arrrS = arrr[self.elemSquare]
+        arrrT = arrr[self.elemTriangle]
+        
+        self.initCornerApex(
+            self.elemTriangle, arrrT, self.halfAnglesTr, self.cornExistsTr, self.initedTr,
+            self.recPcTr, self.advPcTr, self.initedApexDistTr, trapped)
+    
+        self.initCornerApex(
+            self.elemSquare, arrrS, self.halfAnglesSq, self.cornExistsSq, self.initedSq,
+            self.recPcSq, self.advPcSq, self.initedApexDistSq, trapped)
+
         
     def finitCornerApex(self, arr, arrr, halfAng, Pc, m_exists,
                     m_inited, m_initOrMaxPcHist, m_initOrMinApexDistHist,
@@ -834,17 +867,23 @@ class Computations():
 
     def initCornerApex(self, arr, arrr, halfAng, m_exists, m_inited,
                        recPc, advPc, m_initedApexDist, trapped):
-    
-        #from IPython import embed; embed()
-        cond =  (m_exists & (arrr&~trapped[arr])[:, np.newaxis])
-        m_inited[cond] = True
-        Pc = self.sigma*np.cos(np.minimum(np.pi, self.thetaRecAng[
-            arr, np.newaxis]+halfAng))/(m_initedApexDist*np.sin(halfAng))
-        recPc[cond & (recPc < Pc)] = Pc[cond & (recPc < Pc)]
-        advPc[cond] = self.sigma*np.cos((np.minimum(np.pi, self.thetaAdvAng[
-            arr, np.newaxis])+halfAng)[cond])/((m_initedApexDist*np.sin(halfAng))[cond])
-        
 
+        cond =  (m_exists & (arrr&~trapped[arr])[:, np.newaxis])
+        try:
+            assert cond.sum()>0
+            m_inited[cond] = True
+            Pc =np.zeros_like(m_initedApexDist)
+            Pc[cond] = self.sigma*np.cos(np.minimum(
+                np.pi, ((self.thetaRecAng[arr, np.newaxis]+halfAng)*cond)[cond]))/(
+                    m_initedApexDist*np.sin(halfAng))[cond]
+
+            recPc[cond & (recPc < Pc)] = Pc[cond & (recPc < Pc)]
+            advPc[cond] = self.sigma*np.cos(np.minimum(
+                np.pi, ((self.thetaAdvAng[arr, np.newaxis]+halfAng)*cond)[cond]))/(
+                    (m_initedApexDist*np.sin(halfAng))[cond])
+        except AssertionError:
+            pass
+        
 
     def writeResult(self, result_str, Pc):
         print('Sw: %7.6g  \tqW: %8.6e  \tkrw: %8.6g  \tqNW: %8.6e  \tkrnw:\

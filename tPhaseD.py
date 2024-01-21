@@ -26,7 +26,6 @@ class TwoPhaseDrainage(SinglePhase):
         self.trapCluster_W = np.zeros(self.totElements, dtype='int')
         self.trapCluster_NW = np.zeros(self.totElements, dtype='int')
 
-        #from IPython import embed; embed()
         self.trapped = self.trappedW
         self.trappedPc = self.trappedW_Pc
         self.trapClust = self.trapCluster_W
@@ -54,7 +53,8 @@ class TwoPhaseDrainage(SinglePhase):
         self.recPcSq = np.zeros([self.nSquares, 4])
         self.hingAngTr = np.zeros([self.nTriangles, 3])
         self.hingAngSq = np.zeros([self.nSquares, 4])
-        
+    
+        self.do.__initCornerApex__()
         self.__computePistonPc__()
         self.PcD = self.PistonPcRec.copy()
         self.PcI = np.zeros(self.totElements)
@@ -77,6 +77,8 @@ class TwoPhaseDrainage(SinglePhase):
         self.capPresMin = 0
         self.is_oil_inj = True
         self.writeData = writeData
+
+        self.primary = True
 
     @property
     def AreaWPhase(self):
@@ -161,6 +163,8 @@ class TwoPhaseDrainage(SinglePhase):
         print("Number of trapped elements: W: {}  NW:{}".format(
             self.trappedW.sum(), self.trappedNW.sum()))
         print(self.rpd, self.sigma, self.maxPc)
+        self.is_oil_inj = False
+        self.do.__finitCornerApex__(self.capPresMax)
         print('Time spent for the drainage process: ', time() - start)        
         print('==========================================================\n\n')
         #from IPython import embed; embed()
@@ -170,6 +174,7 @@ class TwoPhaseDrainage(SinglePhase):
         k = self.ElemToFill.pop(0)
         capPres = self.PcD[k]
         self.capPresMax = np.max([self.capPresMax, capPres])
+        
 
         try:
             assert k > self.nPores
@@ -180,10 +185,8 @@ class TwoPhaseDrainage(SinglePhase):
             ppp = np.array([self.P1array[ElemInd-1], self.P2array[
                 ElemInd-1]])
             p = ppp[(self.fluid[ppp] == 0) & ~(self.trappedW[ppp]) & (ppp>0)]
-            [*map(lambda i: 
-                  self.do.isTrapped(i, 0, self.capPresMax), p)]
-            #[*map(lambda i: self.do.isTrapped(i, 0, self.trappedW), p)]
-
+            [*map(lambda i: self.do.isTrapped(i, 0, self.capPresMax), p)]
+        
             self.cntT += 1
             self.invInsideBox += self.isinsideBox[k]
             self.__update_PcD_ToFill__(p)
@@ -258,7 +261,7 @@ class TwoPhaseDrainage(SinglePhase):
         self.resultD_str = self.do.writeResult(self.resultD_str, self.capPresMax)
 
     
-    def __computePc__(self, arrr, Fd): 
+    def __computePc__(self, arrr, Fd):
         Pc = self.sigma*(1+2*np.sqrt(pi*self.Garray[arrr]))*np.cos(
             self.contactAng[arrr])*Fd/self.Rarray[arrr]
         return Pc
@@ -351,7 +354,6 @@ class TwoPhaseDrainage(SinglePhase):
         warnings.simplefilter(action='ignore', category=FutureWarning)
         pd.options.mode.chained_assignment = None
 
-        #arrr = ((self.fluid == 1) & (~self.trappedW))
         arrr = (self.fluid == 1)
         arrrS = arrr[self.elemSquare]
         arrrT = arrr[self.elemTriangle]
@@ -368,17 +370,12 @@ class TwoPhaseDrainage(SinglePhase):
                         self.initOrMinApexDistHistTr, self.advPcTr,
                         self.recPcTr, self.initedApexDistTr)
             
-            #apexDist = np.empty_like(self.hingAngTr.T)
             apexDist = np.zeros(self.hingAngTr.T.shape)
             conAngPT, apexDistPT = self.do.cornerApex(
                 self.elemTriangle, arrrT, self.halfAnglesTr.T, self.capPresMax,
                 curConAng, self.cornExistsTr.T, self.initOrMaxPcHistTr.T,
                 self.initOrMinApexDistHistTr.T, self.advPcTr.T,
                 self.recPcTr.T, apexDist, self.initedApexDistTr.T)
-            
-            #self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
-             #   self.elemTriangle[arrrT]] = self.do.calcAreaW(
-              #  arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
             
             cornA, cornG = self.do.calcAreaW(
                 arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
@@ -406,11 +403,7 @@ class TwoPhaseDrainage(SinglePhase):
                 curConAng, self.cornExistsSq.T, self.initOrMaxPcHistSq.T,
                 self.initOrMinApexDistHistSq.T, self.advPcSq.T,
                 self.recPcSq.T, apexDist, self.initedApexDistSq.T)
-            
-            #self._cornArea[self.elemSquare[arrrS]], self._cornCond[
-             #   self.elemSquare[arrrS]] = self.do.calcAreaW(
-              #  arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
-            
+
             cornA, cornG = self.do.calcAreaW(
                 arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
             
@@ -436,44 +429,6 @@ class TwoPhaseDrainage(SinglePhase):
         self._centerArea[arrr] = self.AreaSPhase[arrr] - self._cornArea[arrr]
         self._centerCond[arrr] = np.where(self.AreaSPhase[arrr] != 0.0, self._centerArea[
             arrr]/self.AreaSPhase[arrr]*self.gnwSPhase[arrr], 0.0)
-
-
-    def _updateCornerApex_(self):
-        trapped = (self.trappedW | self.trappedNW)
-        #arrr = ((self.fluid == 1) & (~self.trappedW))
-        arrr = ((self.fluid == 1) & (~trapped))
-        arrrS = arrr[self.elemSquare]
-        arrrT = arrr[self.elemTriangle]
-       
-        apexDist = np.zeros(self.cornExistsTr.T.shape)
-        self.do.finitCornerApex(
-            self.elemTriangle, arrrT, self.halfAnglesTr.T, self.maxPc,
-            self.cornExistsTr.T, self.initedTr.T, self.initOrMaxPcHistTr.T,
-            self.initOrMinApexDistHistTr.T, self.advPcTr.T,
-            #self.recPcTr.T, apexDist, self.initedApexDistTr.T, self.trappedW)
-            self.recPcTr.T, apexDist, self.initedApexDistTr.T, trapped)
-    
-        apexDist = np.zeros(self.cornExistsSq.T.shape)
-        self.do.finitCornerApex(
-            self.elemSquare, arrrS, self.halfAnglesSq[:, np.newaxis], self.maxPc,
-            self.cornExistsSq.T, self.initedSq.T, self.initOrMaxPcHistSq.T,
-            self.initOrMinApexDistHistSq.T, self.advPcSq.T,
-            #self.recPcSq.T, apexDist, self.initedApexDistSq.T, self.trappedW)
-            self.recPcSq.T, apexDist, self.initedApexDistSq.T, trapped)
-
-
-    def __initCornerApex__(self):
-        arrr = ((self.fluid == 1) & (~self.trappedW))
-        arrrS = arrr[self.elemSquare]
-        arrrT = arrr[self.elemTriangle]
-        
-        self.do.initCornerApex(
-            self.elemTriangle, arrrT, self.halfAnglesTr, self.cornExistsTr, self.initedTr,
-            self.recPcTr, self.advPcTr, self.initedApexDistTr, self.trappedW)
-    
-        self.do.initCornerApex(
-            self.elemSquare, arrrS, self.halfAnglesSq, self.cornExistsSq, self.initedSq,
-            self.recPcSq, self.advPcSq, self.initedApexDistSq, self.trappedW)
         
 
     def __writeHeadersD__(self):

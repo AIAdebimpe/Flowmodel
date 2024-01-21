@@ -20,8 +20,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         if not hasattr(self, 'do'):     
             self.do = Computations(self)
 
-        self._updateCornerApex_()
-
         self.trapped = self.trappedNW
         self.trappedPc = self.trappedNW_Pc
         self.trapClust = self.trapCluster_NW
@@ -39,7 +37,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.contactAng, self.thetaRecAng, self.thetaAdvAng =\
             self.do.__wettabilityDistribution__()
         self.is_oil_inj = False
-        self.__initCornerApex__()
+        self.do.__initCornerApex__()
         self.__computePistonPc__()
         self.__computePc__(self.maxPc, self.elementLists, False)
 
@@ -138,6 +136,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.renumCluster()
         print("Number of trapped elements: W: {}  NW:{}".format(
             self.trappedW.sum(), self.trappedNW.sum()))
+        self.is_oil_inj = True
+        self.do.__finitCornerApex__(self.capPresMin)
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
     
@@ -259,10 +259,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.initOrMinApexDistHistSq.T, self.advPcSq.T,
                 self.recPcSq.T, apexDist, self.initedApexDistSq.T)
             
-            #self._cornArea[self.elemSquare[arrrS]], self._cornCond[
-             #   self.elemSquare[arrrS]] = self.do.calcAreaW(
-              #  arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
-            
             cornA, cornG = self.do.calcAreaW(
                 arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
             
@@ -283,10 +279,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 curConAng, self.cornExistsTr.T, self.initOrMaxPcHistTr.T,
                 self.initOrMinApexDistHistTr.T, self.advPcTr.T,
                 self.recPcTr.T, apexDist, self.initedApexDistTr.T)
-            
-            #self._cornArea[self.elemTriangle[arrrT]], self._cornCond[
-             #   self.elemTriangle[arrrT]] = self.do.calcAreaW(
-              #  arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
             
             cornA, cornG = self.do.calcAreaW(
                 arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
@@ -447,8 +439,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 try:
                     assert (abs(partus[cond1]) <= 1.0).all()
                 except AssertionError:
-                    print("partus has entries outside the range!", cond1.sum(), counter)
-                    from IPython import embed; embed()              
+                    partus[cond1 & (abs(partus) > 1.0)] = 0.0          
 
                 sumOne[cond1] += (apexDist*np.cos(conAng))[cond1]
                 sumTwo[cond1] += (np.pi/2-conAng-halfAng[i])[cond1]
@@ -477,59 +468,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
         return newPc[arrr]
     
-
-    def __PistonPcImbnww__(self, arrr, halfAng):
-        try:
-            assert arrr.sum() == 0
-        except AssertionError:
-            conAng = math.pi - self.thetaAdvAng[arrr]
-            potentialCurveRad = []
-            sOne = np.zeros(arrr.sum())
-            sTwo = np.zeros(arrr.sum())
-            sThree = np.zeros(arrr.sum())
-            for i in range(halfAng.shape[0]):
-                cond = (self.thetaAdvAng[arrr] > math.pi/2.0 + halfAng[i])
-                sOne[cond] += (np.cos(conAng) * np.cos(conAng + halfAng[i]) /
-                        np.sin(halfAng[i]) - (np.pi/2.0 - conAng - halfAng[i]))
-                sTwo[cond] += np.cos(conAng + halfAng[i]) / np.sin(halfAng[i])
-                sThree[cond] += 2.0 * (math.pi/2.0 - conAng - halfAng[i])
-
-                dFact = sOne - 2.0 * sTwo * np.cos(conAng) + sThree
-                rootFact = 1.0 + 4.0*self.shapeFactor*dFact/(np.cos(conAng)*np.cos(conAng))
-
-                radOne = self.Rarray[arrr]*np.cos(conAng)*(1.0 - np.sqrt(rootFact))/(
-                    4.0 * self.Garray[arrr] * dFact)
-                radTwo = (self.Rarray[arrr]*np.cos(conAng)*(1.0 + np.sqrt(rootFact))/(
-                    4.0*self.shapeFactor*dFact))
-                potentialCurveRad.append(np.maximum(radOne, radTwo))
-            
-
-        
-
-            # Create an array of tension values
-            tension = self.comn.oil().interfacialTen() * np.ones(self.numCorners)
-            
-            # Calculate pc values
-            pc = tension / potentialCurveRad
-            
-            # Initialize the layerPc array with negative infinity values
-            layerPc = np.full(self.numCorners, float('-inf'))
-            
-            # Calculate layerPc values for corners where the waterInCorner exists
-            cond2 = self.waterInCorner.cornerExists()
-            layerPc[cond2] = self.oilLayer[cond2].entryPc()
-
-            # Find the first corner with pc > layerPc and return the corresponding result
-            cond3 = pc > layerPc
-            first_true_index = np.argmax(cond3)
-            
-            if any(cond3):
-                return self.comn.oil().interfacialTen() / potentialCurveRad[first_true_index]
-
-            # If no corner meets the condition, return the default value
-            return self.comn.oil().interfacialTen() * (2.0 * np.cos(self.thetaAdvAng)) / self.R
-
-
     
     def __computeSnapoffPc__(self):
         # update entry capillary pressure for Snap-off filling
@@ -718,7 +656,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self.PcI[arr] = entryPc[arr]
             self.ElemToFill.update(arr[(self.fluid[arr]==1)])
             
-
 
     def __porebodyFilling__(self, ind):
         try:
