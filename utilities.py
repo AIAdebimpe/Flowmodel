@@ -8,6 +8,7 @@ from scipy.sparse import csr_matrix
 import warnings
 import numba as nb
 from numba import int64, float64
+from sortedcontainers import SortedList
 from solver import Solver
 
 
@@ -44,9 +45,105 @@ class Computations():
                     cond1]/g[self.P1array[cond1]])
 
         return gL
+
+
+    def isConnected3(self, indPS, indTS):
+        connected = np.zeros(self.totElements, dtype='bool')
+        Notdone = np.zeros(self.totElements, dtype='bool')
+        isOnInletBdr = self.isOnInletBdr.copy()
+        isOnInletBdr[self.poreList] = False
+        isOnOutletBdr = self.isOnOutletBdr.copy()
+        isOnOutletBdr[self.poreList] = False
+
+        Notdone[indPS] = True
+        Notdone[indTS+self.nPores] = True
+        Notdone = (Notdone&(isOnInletBdr|isOnOutletBdr|self.isinsideBox))
+        arrlist = list(self.elementLists[(Notdone&isOnInletBdr)[1:-1]])
+
+        while True:
+            conn = np.zeros(self.totElements, dtype='bool')
+            arrr = np.zeros(self.totElements, dtype='bool')
+            try:
+                arr = arrlist.pop(0)
+                while True:
+                    arrr[:] = False
+                    try:
+                        Notdone[arr] = False
+                        conn[arr] = True
+                        try:
+                            arrr[np.array([*chain(*self.PTConData[arr])])+self.nPores] = True
+                        except TypeError:
+                            arrr[self.PTConData[arr]+self.nPores]=True
+                        except IndexError:
+                            arrr[self.P1array[arr-self.nPores-1]] = True
+                            arrr[self.P2array[arr-self.nPores-1]] = True
+                        arr = self.elementLists[(arrr&Notdone)[1:-1]]
+                        assert arr.size > 0
+                    except AssertionError:
+                        arrlist = np.array(arrlist)
+                        arrlist = list(arrlist[Notdone[arrlist]])
+                        try:
+                            assert conn[isOnOutletBdr].sum()>0
+                            connected[conn] = True
+                        except AssertionError:
+                            pass
+                        break
+            except IndexError:
+                break
+
+        return connected
     
 
-    def isConnected(self, indPS, indTS) -> np.array:
+    def isConnected(self, indPS, indTS):
+        connected = np.zeros(self.totElements, dtype='bool')
+        Notdone = np.zeros(self.totElements, dtype='bool')
+        isOnInletBdr = self.isOnInletBdr.copy()
+        isOnInletBdr[self.poreList] = False
+        isOnOutletBdr = self.isOnOutletBdr.copy()
+        isOnOutletBdr[self.poreList] = False
+
+        Notdone[indPS] = True
+        Notdone[indTS+self.nPores] = True
+        Notdone = (Notdone&(isOnInletBdr|isOnOutletBdr|self.isinsideBox))
+        arrlist = list(self.elementLists[(Notdone&isOnInletBdr)[1:-1]])
+        arrr = np.zeros(self.totElements, dtype='bool')
+        conn = np.zeros(self.totElements, dtype='bool')
+
+        while True:
+            conn[:] = False
+            try:
+                arr = arrlist.pop(0)
+                while True:
+                    arrr[:] = False
+                    try:
+                        Notdone[arr] = False
+                        conn[arr] = True
+                        try:
+                            arrr[np.array([*chain(*self.PTConData[arr])])+self.nPores] = True
+                        except TypeError:
+                            arrr[self.PTConData[arr]+self.nPores]=True
+                        except IndexError:
+                            arr = arr-self.nPores-1
+                            arrr[self.P1array[arr]] = True
+                            arrr[self.P2array[arr]] = True
+                        arr = self.elementLists[(arrr&Notdone)[1:-1]]
+                        assert arr.size > 0
+                    except AssertionError:
+                        arrlist = np.array(arrlist)
+                        arrlist = list(arrlist[Notdone[arrlist]])
+                        try:
+                            assert conn[isOnOutletBdr].sum()>0
+                            connected[conn] = True
+                        except AssertionError:
+                            pass
+                        break
+            except IndexError:
+                break
+
+        return connected
+
+
+    def isConnected1(self, indPS, indTS) -> np.array:
         connected = np.zeros(self.totElements, dtype='bool')
 
         doneP = np.ones(self.nPores+2, dtype='bool')
@@ -56,11 +153,12 @@ class Computations():
         doneT[indTS] = False
 
         #tin = list(self.conTToIn[~doneT[self.conTToIn]])
+        #from IPython import embed; embed()
         tin = self.elementLists[self.isOnInletBdr[1:-1] & self.connected[1:-1]]-self.nPores
         tin = list(tin[~doneT[tin]])
         tout = self.elementLists[self.isOnOutletBdr[1:-1] & self.connected[1:-1]]
         tout = list(tout[~doneT[tout-self.nPores]])
-
+        #from IPython import embed; embed()
         while True:
             try:
                 conn = np.zeros(self.totElements, dtype='bool')
@@ -101,126 +199,55 @@ class Computations():
 
         connected = connected & self.isinsideBox
         return connected
-
-
-    def isTrapped(self, i, fluid, Pc):
-        try:
-            assert self.trapped[i]
-            return True
-        except AssertionError:
-            try:
-                assert fluid
-                Notdone = (self.fluid==fluid)
-            except AssertionError:
-                Notdone = (self.fluid==0)|self.isPolygon
-        
-        Notdone[[i, -1, 0]] = False, True, True
-        arrlist = [i]
-        arr = np.zeros(self.totElements, dtype='bool')
-        arr[i] = True
-    
-        while True:
-            try:
-                i = arrlist.pop(np.argmin(self.distToBoundary[arrlist]))
-                assert i>0
-                Notdone[i] = False
-                arr[i] = True
-                tt = self.PTConData[i]+self.nPores
-                arrlist.extend(tt[Notdone[tt]])
-            except IndexError:
-                pp = np.array([self.P1array[i-self.nPores-1],
-                               self.P2array[i-self.nPores-1]])
-                arrlist.extend(pp[Notdone[pp]])
-            except AssertionError:
-                return False
-            
-            try:
-                assert len(arrlist)>0
-            except AssertionError:
-                self.trapped[arr] = True
-                self.trappedPc[arr] = Pc
-                self.trapClust[arr] = self.trapClust.max()+1
-                return True
                 
 
-    def isTrapped1(self, i, fluid, trapped):
+    def isTrapped(self, i, fluid, Pc, args=None):
+        try:
+            assert not args
+            (trapped, trappedPc, trapClust) = (
+                self.trapped, self.trappedPc, self.trapClust)
+        except AssertionError:
+            (trapped, trappedPc, trapClust) = args
+        
         try:
             assert trapped[i]
             return True
         except AssertionError:
             try:
-                assert i > self.nPores
-                try:
-                    assert self.P1array[i-self.nPores-1]*self.P2array[i-self.nPores-1] <= 0
-                    return False
-                except AssertionError:
-                    pp = np.array([self.P1array[i-self.nPores-1], self.P2array[i-self.nPores-1]])
-                    tt = np.array([])
-                    indexP, indexT = [], [i]
-                    
+                assert fluid
+                Notdone = (self.fluid==1)
             except AssertionError:
-                pp = np.array([])
-                tt = self.PTConData[i]+self.nPores
-                indexP, indexT = [i], []
+                Notdone = (self.fluid==0)|self.isPolygon
 
-            try:
-                assert fluid == 0
-                indS =  (~trapped) & ((self.fluid==0) | (
-                    self.Garray <= self.bndG2))
-            except AssertionError:
-                indS =  (~trapped) & (self.fluid==1)
+        arr = Notdone.copy()
+        Notdone[[-1, 0]] = True, True
+        arrlist = [i]
         
-            indS[[-1, 0]] = True
-            indS[i] = False
+        while True:
             try:
-                pplist = list(pp[indS[pp]])
-                indS[pp[indS[pp]]] = False
-            except IndexError:
-                pplist = []
-            try:
-                ttlist = list(tt[indS[tt]])
-                indS[tt[indS[tt]]] = False
-            except IndexError:
-                ttlist = []
-
-            while True:
+                j = arrlist.pop(np.argmin(self.distToBoundary[arrlist]))
+                assert j>0
+                Notdone[j] = False
+                pt = self.elem[j].neighbours
+                arrlist.extend(pt[Notdone[pt]])
+            except AssertionError:
+                #if trapped[(arr & ~Notdone)].sum()>0:
+                 #   print("some of them are trapped")
+                    #from IPython import embed; embed()
+                return False
+            except (IndexError, ValueError):
+                arr = (arr & ~Notdone)
                 try:
-                    t = ttlist.pop(np.argmin(self.distToBoundary[ttlist]))
-                    indexT.append(t)
-                    pp = np.array([self.P1array[t-self.nPores-1], self.P2array[
-                        t-self.nPores-1]])
-                    pplist.extend(pp[indS[pp]])
-                    indS[pp] = False
-                except ValueError:
-                    pass
-                try:
-                    p = pplist.pop(np.argmin(self.distToBoundary[pplist]))
-                    try:
-                        assert p <= 0
-                        return False
-                    except AssertionError:
-                        indexP.append(p)
-                    tt = self.PTConData[p][indS[self.PTConData[p]+self.nPores]]+self.nPores
-                    ttlist.extend(tt)
-                    indS[tt] = False
-                except ValueError:
-                    pass
-                try:
-                    assert len(pplist)+len(ttlist) > 0
+                    assert trapped[arr].sum()==0
+                    trapped[arr] = True
+                    trappedPc[arr] = Pc
+                    trapClust[arr] = trapClust.max()+1
                 except AssertionError:
-                    try:
-                        trapped[indexP] = True
-                        self.PcI[indexP] = self.capPresMax*(fluid==1) + self.capPresMin*(fluid==0) 
-                    except IndexError:
-                        pass
-                    try:
-                        trapped[indexT] = True
-                        self.PcI[indexT] = self.capPresMax*(fluid==1) + self.capPresMin*(fluid==0)
-                    except IndexError:
-                        pass
-                    
-                    return True
-
+                    trapped[arr] = True
+                    trappedPc[arr] = trappedPc[
+                        arr&(trapClust==trapClust[arr].max())][0]
+                    trapClust[arr] = trapClust[arr].max()
+                return True
 
 
     def getValue(self, arrr, gL):
@@ -349,9 +376,10 @@ class Computations():
             row.extend((P1, P2, P1, P2))
             col.extend((P2, P1, P1, P2))
             data.extend((-cond, -cond, cond, cond))
-            return
 
         def worker2(t:int, P:int):
+            #print(t, P)
+            #from IPython import embed; embed()
             cond = gL[t-1]
             P = mList[P]
             row.append(P)
@@ -365,7 +393,7 @@ class Computations():
             row.append(P)
             col.append(P)
             data.append(cond)
-        
+
         for arr in indT1: worker1(*arr)
         for arr in indT2: worker2(*arr)
         for arr in indT3: worker3(*arr)
@@ -388,6 +416,7 @@ class Computations():
         arrPoreList[self.P2array[(gL > 0.0)]] = True
         indPS = self.poreList[arrPoreList[1:-1]]
         indTS = self.throatList[(gL > 0.0)]
+        #from IPython import embed; embed()
         self.conn = self.isConnected(indPS, indTS)
         Amatrix, Cmatrix = self.__getValue__(self.conn, gL)
 

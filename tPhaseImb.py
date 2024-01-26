@@ -109,25 +109,26 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.filling = False
                 break
 
-            self.PcTarget = max(self.minPc-1e-7, self.PcTarget-(
-                self.minDeltaPc+abs(
-                    self.PcTarget)*self.deltaPcFraction+1e-16))
-            self.SwTarget = min(self.finalSat+1e-15, round((
-                self.satW+self.dSw*0.75)/self.dSw)*self.dSw)
-
-            if len(self.ElemToFill) == 0:
+            if (len(self.ElemToFill)==0) or not self.filling:
                 self.filling = False
                 while self.PcTarget > self.minPc+0.001:
+                    self.PcTarget = max(self.minPc-1e-10, self.PcTarget-(
+                        self.minDeltaPc+abs(
+                         self.PcTarget)*self.deltaPcFraction))
+                    self.capPresMin = self.PcTarget
                     self.__CondTPImbibition__()
                     self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
                     self.do.computePerm()
                     self.Pc = self.PcTarget
                     self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
-                    self.PcTarget = max(self.minPc-1e-10, self.PcTarget-(
-                        self.minDeltaPc+abs(
-                         self.PcTarget)*self.deltaPcFraction))
-                    self.capPresMin = self.PcTarget
+                    
                 break
+
+            self.PcTarget = max(self.minPc-1e-7, self.PcTarget-(
+                self.minDeltaPc+abs(
+                    self.PcTarget)*self.deltaPcFraction+1e-16))
+            self.SwTarget = min(self.finalSat+1e-15, round((
+                self.satW+self.dSw*0.75)/self.dSw)*self.dSw)
 
         if self.writeData:
             with open(self.file_name, 'a') as fQ:

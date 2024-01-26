@@ -40,13 +40,16 @@ class SinglePhase(Network):
         arrPoreList[self.P2array[(gLSP > 0.0)]] = True
         indPS = self.poreList[arrPoreList[1:-1]]
         indTS = self.throatList[(gLSP > 0.0)]
+        #from IPython import embed; embed()
+        #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
         conn = compute.isConnected(indPS, indTS)
+        #print('*******************************')
+        #print(conn, conn.sum())
 
         AmatrixW, CmatrixW = compute.__getValue__(conn, gLSP)
         presSP = np.zeros(self.nPores+2)
         presSP[self.poreList[self.isOnInletBdr[self.poreList]]] = 1.0
         presSP[1:-1][conn[self.poreList]] = compute.matrixSolver(AmatrixW, CmatrixW)
-
         delSP = np.abs(presSP[self.P1array] - presSP[self.P2array])
         qp = gLSP*delSP
 
