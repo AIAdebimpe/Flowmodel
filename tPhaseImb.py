@@ -109,25 +109,26 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.filling = False
                 break
 
-            self.PcTarget = max(self.minPc-1e-7, self.PcTarget-(
-                self.minDeltaPc+abs(
-                    self.PcTarget)*self.deltaPcFraction+1e-16))
-            self.SwTarget = min(self.finalSat+1e-15, round((
-                self.satW+self.dSw*0.75)/self.dSw)*self.dSw)
-
-            if len(self.ElemToFill) == 0:
+            if (len(self.ElemToFill)==0) or not self.filling:
                 self.filling = False
                 while self.PcTarget > self.minPc+0.001:
+                    self.PcTarget = max(self.minPc-1e-10, self.PcTarget-(
+                        self.minDeltaPc+abs(
+                         self.PcTarget)*self.deltaPcFraction))
+                    self.capPresMin = self.PcTarget
                     self.__CondTPImbibition__()
                     self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
                     self.do.computePerm()
                     self.Pc = self.PcTarget
                     self.resultI_str = self.do.writeResult(self.resultI_str, self.capPresMin)
-                    self.PcTarget = max(self.minPc-1e-10, self.PcTarget-(
-                        self.minDeltaPc+abs(
-                         self.PcTarget)*self.deltaPcFraction))
-                    self.capPresMin = self.PcTarget
+                    
                 break
+
+            self.PcTarget = max(self.minPc-1e-7, self.PcTarget-(
+                self.minDeltaPc+abs(
+                    self.PcTarget)*self.deltaPcFraction+1e-16))
+            self.SwTarget = min(self.finalSat+1e-15, round((
+                self.satW+self.dSw*0.75)/self.dSw)*self.dSw)
 
         if self.writeData:
             with open(self.file_name, 'a') as fQ:
@@ -149,7 +150,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                 self.satW <= self.SwTarget):
             self.oldSatW = self.satW
             self.invInsideBox = 0
-            self.cntT, self.cntP = 0, 0
+            self.cnt = 0
             try:
                 while (self.invInsideBox < self.fillTarget) & (
                     len(self.ElemToFill) != 0) & (
@@ -167,7 +168,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
 
             self.__CondTPImbibition__()
             self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
-            self.totNumFill += (self.cntP+self.cntT)
+            self.totNumFill += self.cnt
 
             try:
                 assert self.PcI[self.ElemToFill[0]] >= self.PcTarget
@@ -195,48 +196,21 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.capPresMin = np.min([self.capPresMin, capPres])
 
         try:
-            assert k > self.nPores
-            ElemInd = k-self.nPores
             assert not self.do.isTrapped(k, 1, self.capPresMin)
             self.fluid[k] = 0
             self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres)+3*(
                 self.snapoffPc[k] == capPres)
-            self.cntT += 1
+            self.cnt += 1
             self.invInsideBox += self.isinsideBox[k]
 
-            ppp = np.array([self.P1array[ElemInd-1], self.P2array[
-                ElemInd-1]])
-            pp = ppp[(self.fluid[ppp] == 1)&(~self.trappedNW[ppp])&(ppp>0)]
-            
-            # update Pc and the filling list
-            assert pp.size > 0
-            [*map(lambda i: self.do.isTrapped(i, 1, self.capPresMin), pp)]
-            self.__computePc__(self.capPresMin, pp)
+            arr = self.elem[k].neighbours
+            arr = arr[(self.fluid[arr] == 1)&(~self.trappedNW[arr])&(arr>0)]
+            [*map(lambda i: self.do.isTrapped(i, 1, self.capPresMin), arr)]
+            self.__computePc__(self.capPresMin, arr)
 
         except AssertionError:
             pass
 
-        try:
-            assert k <= self.nPores
-            ElemInd = k
-            assert not self.do.isTrapped(k, 1, self.capPresMin)
-            self.fluid[k] = 0
-            self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres) + 2*(
-                self.porebodyPc[k] == capPres) + 3*(
-                    self.snapoffPc[k] == capPres)
-            self.cntP += 1
-            self.invInsideBox += self.isinsideBox[k]
-
-            tt = self.PTConData[ElemInd]+self.nPores
-            tt = tt[(self.fluid[tt] == 1) & ~(self.trappedNW[tt])]
-
-            # update Pc and the filling list
-            assert tt.size > 0
-            [*map(lambda i: self.do.isTrapped(i, 1, self.capPresMin), tt)]
-            self.__computePc__(self.capPresMin, tt)
-
-        except AssertionError:
-            pass
 
     def __CondTPImbibition__(self):
         # to suppress the FutureWarning and SettingWithCopyWarning respectively
@@ -588,17 +562,11 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             return (self.fluid[self.PTConData[i]+self.nPores] == 0).sum()
         except IndexError:
             return 0.0
+    
         
-    def __func2(self, i):
+    def __func(self, i):
         try:
-            arr=self.PTConData[i][(self.fluid[self.PTConData[i]+self.nPores] == 0)]+self.nPores
-            return self.PistonPcAdv[arr].max()
-        except (IndexError, ValueError):
-            return 0.0
-        
-    def __func3(self, i):
-        try:
-            arr=np.array([self.P1array[i-1], self.P2array[i-1]])
+            arr = self.elem[i].neighbours
             return self.PistonPcAdv[arr[self.fluid[arr]==0]].max()
         except (IndexError, ValueError):
             return 0.0
@@ -617,21 +585,18 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         return (-round(self.PcI[k], 9), k <= self.nPores, -k)
 
     def __computePc__(self, Pc, arr, update=True):
-        cond = (self.fluid == 1)
-        arrP = arr[arr <= self.nPores]
-        arrT = arr[arr > self.nPores]
-        arrrCP = arrP[cond[arrP]]     # pores filled with nw
-        arr1 = np.array([*map(lambda i: self.__func1(i), arrrCP)])
-        cond1 = (arr1 > 0) & (self.thetaAdvAng[arrrCP] < np.pi/2.0) #pores for porebody filling
-        
         entryPc = self.PistonPcAdv.copy()
-        self.__porebodyFilling__(arrrCP[cond1])
-        entryPc[arrrCP[cond1]] = self.porebodyPc[arrrCP[cond1]]
-        
         maxNeiPistonPrs = np.zeros(self.totElements)
-        maxNeiPistonPrs[arrrCP] = np.array([*map(lambda i: self.__func2(i), arrrCP)])
-        arrrCT = arrT[cond[arrT]]
-        maxNeiPistonPrs[arrrCT] = np.array([*map(lambda i: self.__func3(i), arrrCT-self.nPores)])
+
+        cond = (self.fluid == 1)  # elements filled with nw
+        arrP = arr[cond[arr] & (arr <= self.nPores)]   #pores filled with nw
+        arr1 = np.array([*map(lambda i: self.__func1(i), arrP)])
+        cond1 = (arr1 > 0) & (self.thetaAdvAng[arrP] < np.pi/2.0) #pores for porebody filling
+        self.__porebodyFilling__(arrP[cond1])
+        entryPc[arrP[cond1]] = self.porebodyPc[arrP[cond1]]
+        
+        arrr = arr[cond[arr]]
+        maxNeiPistonPrs[arrr] = np.array([*map(lambda i: self.__func(i), arrr)])
         condb = (maxNeiPistonPrs > 0.0)
         entryPc[condb] = np.minimum(0.999*maxNeiPistonPrs[
             condb]+0.001*entryPc[condb], entryPc[condb])
@@ -639,10 +604,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         # Snap-off filling
         self.__computeSnapoffPc1__(Pc)
         #self.__computeSnapoffPc__()
-
         conda = (maxNeiPistonPrs > 0.0) & (entryPc > self.snapoffPc)
         entryPc[~conda&(self.Garray<self.bndG2)] = self.snapoffPc[~conda&(self.Garray<self.bndG2)]
-
         try:
             assert update
             

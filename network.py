@@ -467,14 +467,6 @@ class Element:
         self.isOnOutletBdr = parent.isOnOutletBdr[self.indexOren]
         self.isOnBdr = self.isOnInletBdr | self.isOnOutletBdr
         self.isConnected = parent.connected[self.indexOren]
-        #self.neighbours = self.__neighbours__()
-
-    @property
-    def __neighbours__(self):
-        try:
-            return np.array([self.P1, self.P2])
-        except AttributeError:
-            return self.connT
 
 
 class Pore:    
@@ -492,7 +484,7 @@ class Pore:
         self.poreInletStat = parent.pore[ind-1][9]
         self.poreOutletStat = parent.pore[ind-1][10]
         self.connP = parent.poreCon[ind]
-        self.connT = parent.throatCon[ind]+parent.nPores
+        self.neighbours = self.connT = parent.throatCon[ind]+parent.nPores
         self.isPore = True
 
 
@@ -519,6 +511,8 @@ class Throat:
         self.LP1mod = parent.LP1array_mod[self.index-1]
         self.LP2mod = parent.LP2array_mod[self.index-1]
         self.LTmod = parent.LTarray_mod[self.index-1]
+
+        self.neighbours = np.array([self.P1, self.P2])
         
  
         
@@ -587,3 +581,6 @@ profiler.disable()
 stats = pstats.Stats(profiler).sort_stats('cumtime')
 stats.print_stats()
 from IPython import embed; embed()'''
+'''
+%load_ext line_profiler
+'''
