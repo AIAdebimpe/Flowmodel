@@ -174,38 +174,19 @@ class TwoPhaseDrainage(SinglePhase):
         k = self.ElemToFill.pop(0)
         capPres = self.PcD[k]
         self.capPresMax = np.max([self.capPresMax, capPres])
-        
 
         try:
-            assert k > self.nPores
-            ElemInd = k-self.nPores
             assert not self.do.isTrapped(k, 0, self.capPresMax)
             self.fluid[k] = 1
             self.PistonPcRec[k] = self.centreEPOilInj[k]
-            ppp = np.array([self.P1array[ElemInd-1], self.P2array[
-                ElemInd-1]])
-            p = ppp[(self.fluid[ppp] == 0) & ~(self.trappedW[ppp]) & (ppp>0)]
-            [*map(lambda i: self.do.isTrapped(i, 0, self.capPresMax), p)]
-        
-            self.cntT += 1
-            self.invInsideBox += self.isinsideBox[k]
-            self.__update_PcD_ToFill__(p)
-        except (AssertionError, IndexError):
-            pass            
+            arr = self.elem[k].neighbours
+            arr = arr[(self.fluid[arr] == 0) & ~(self.trappedW[arr]) & (arr>0)]
+            [*map(lambda i: self.do.isTrapped(i, 0, self.capPresMax), arr)]
 
-        try:
-            assert k <= self.nPores
-            assert not self.do.isTrapped(k, 0, self.capPresMax)
-            self.fluid[k] = 1
-            self.PistonPcRec[k] = self.centreEPOilInj[k]
-            thr = self.PTConData[k]+self.nPores
-            thr = thr[(self.fluid[thr] == 0) & ~(self.trappedW[thr])]
-            [*map(lambda i: self.do.isTrapped(i, 0, self.capPresMax), thr)]
-
-            self.cntP += 1
+            self.cnt += 1
             self.invInsideBox += self.isinsideBox[k]
-            self.__update_PcD_ToFill__(thr)
-        except (AssertionError, IndexError):
+            self.__update_PcD_ToFill__(arr)
+        except AssertionError:
             pass
     
 
@@ -221,7 +202,7 @@ class TwoPhaseDrainage(SinglePhase):
                 self.satW > self.SwTarget):
             self.oldSatW = self.satW
             self.invInsideBox = 0
-            self.cntT, self.cntP = 0, 0
+            self.cnt = 0
             while (self.invInsideBox < self.fillTarget) & (
                 len(self.ElemToFill) != 0) & (
                     self.PcD[self.ElemToFill[0]] <= self.PcTarget):
@@ -235,7 +216,7 @@ class TwoPhaseDrainage(SinglePhase):
             
             self.__CondTP_Drainage__()
             self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
-            self.totNumFill += (self.cntP+self.cntT)
+            self.totNumFill += self.cnt
             try:
                 self.fillTarget = max(self.m_minNumFillings, int(min(
                     self.fillTarget*self.m_maxFillIncrease,
@@ -275,78 +256,43 @@ class TwoPhaseDrainage(SinglePhase):
         self.PistonPcRec[self.elemSquare] = self.__computePc__(
             self.elemSquare, self.Fd_Sq)
         
-    def __func1(self, arr):
-        try:
-            return self.PistonPcRec[arr[self.fluid[arr] == 1]].min()
-        except ValueError:
-            return 0
     
-    def __func2(self, i):
+    def __func(self, i):
         try:
-            return self.PistonPcRec[i[(i > 0) & (self.fluid[i] == 1)]].min()
+            arr = self.elem[i].neighbours
+            return self.PistonPcRec[arr[(arr > 0) & (self.fluid[arr] == 1)]].min()
         except ValueError:
             return 0
+
     
     def __func3(self, i):
         try:
             self.ElemToFill.remove(i)
+            self.NinElemList[i] = True
         except ValueError:
             pass
 
     def __update_PcD_ToFill__(self, arr) -> None:
-        arrP = arr[arr <= self.nPores]
-        arrT = arr[arr > self.nPores]
         try:
-            thr = self.PTConData[arrP]+self.nPores
-            minNeiPc = np.array([*map(lambda arr: self.__func1(arr), thr)])
-            #from IPython import embed; embed()
+            minNeiPc = np.array([*map(lambda ar: self.__func(ar), arr)])
             entryPc = np.maximum(0.999*minNeiPc+0.001*self.PistonPcRec[
-                arrP], self.PistonPcRec[arrP])
+                arr], self.PistonPcRec[arr])
             
-            cond1 = self.NinElemList[arrP]
-            cond2 = ~cond1 & (entryPc != self.PcD[arrP])
-            try:
-                assert cond1.sum() > 0
-                self.PcD[arrP[cond1]] = entryPc[cond1]
-                self.ElemToFill.update(arrP[cond1])
-                self.NinElemList[arrP[cond1]] = False
-            except AssertionError:
-                pass
-            try:
-                assert cond2.sum() > 0
-                #[self.ElemToFill.remove(p) for p in arrP[cond2]]
-                [*map(lambda i: self.__func3(i), arrP[cond2])]
-                self.PcD[arrP[cond2]] = entryPc[cond2]
-                self.ElemToFill.update(arrP[cond2])
-            except AssertionError:
-                pass
-        except IndexError:
+            # elements to be removed before updating PcD
+            cond1 = (entryPc != self.PcD[arr]) & (~self.NinElemList[arr])
+            [*map(lambda i: self.__func3(i), arr[cond1])]
+
+            # updating elements with new PcD
+            cond2 = (entryPc != self.PcD[arr])
+            self.PcD[arr[cond2]] = entryPc[cond2]
+
+            # updating the ToFill elements
+            cond3 = (self.NinElemList[arr])
+            self.ElemToFill.update(arr[cond3])
+            self.NinElemList[arr[cond3]] = False
+        except:
             pass
-        try:
-            ppp = np.array([*zip(
-                self.P1array[arrT-self.nPores-1], self.P2array[arrT-self.nPores-1])])
-            minNeiPc = np.array([*map(lambda arr: self.__func2(arr), ppp)])
-            entryPc = np.maximum(0.999*minNeiPc+0.001*self.PistonPcRec[arrT], self.PistonPcRec[arrT])
             
-            cond1 = self.NinElemList[arrT]
-            cond2 = ~cond1 & (entryPc != self.PcD[arrT])
-            try:
-                assert cond1.sum() > 0
-                self.PcD[arrT[cond1]] = entryPc[cond1]
-                self.ElemToFill.update(arrT[cond1])
-                self.NinElemList[arrT[cond1]] = False
-            except AssertionError:
-                pass
-            try:
-                assert cond2.sum() > 0
-                [*map(lambda i: self.__func3(i), arrT[cond2])]
-                #[self.ElemToFill.remove(t) for t in arrT[cond2]]
-                self.PcD[arrT[cond2]] = entryPc[cond2]
-                self.ElemToFill.update(arrT[cond2])
-            except AssertionError:
-                pass          
-        except IndexError:
-            pass
 
     
     def __CondTP_Drainage__(self):

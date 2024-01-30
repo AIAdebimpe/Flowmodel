@@ -41,6 +41,8 @@ class Network(InputData):
         np.random.seed(self.SEED)
         self.dirname = os.path.dirname(__file__)
         self.__readNetworkFiles__()
+        self.PTConnections = np.zeros([self.nPores+2, self.maxPoreCon], dtype='int')
+        self.TPConnections = np.zeros([self.nThroats+1, 2], dtype='int')
         self.xstart = self.calcBox[0]*self.xDim
         self.xend = self.calcBox[1]*self.xDim
         self.NetworkData()
@@ -486,6 +488,7 @@ class Pore:
         self.connP = parent.poreCon[ind]
         self.neighbours = self.connT = parent.throatCon[ind]+parent.nPores
         self.isPore = True
+        parent.PTConnections[self.index][:self.connT.size]=self.connT
 
 
 class Throat:    
@@ -513,6 +516,7 @@ class Throat:
         self.LTmod = parent.LTarray_mod[self.index-1]
 
         self.neighbours = np.array([self.P1, self.P2])
+        parent.TPConnections[self.index]=self.neighbours
         
  
         
