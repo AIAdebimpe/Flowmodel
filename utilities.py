@@ -220,7 +220,7 @@ class Computations():
                 Notdone = (self.fluid==0)|self.isPolygon
 
         arr = Notdone.copy()
-        Notdone[[-1, 0]] = True, True
+        Notdone[[-1, 0, i]] = True, True, False
         arrlist = [i]
         
         while True:
@@ -231,9 +231,28 @@ class Computations():
                 pt = self.elem[j].neighbours
                 arrlist.extend(pt[Notdone[pt]])
             except AssertionError:
-                #if trapped[(arr & ~Notdone)].sum()>0:
-                 #   print("some of them are trapped")
+                Notdone[arrlist] = False
+                try:
+                    arrlist = np.array(arrlist)[trapped[arrlist]]
+                    arrl = []
+                    [arrl.extend(self.elementLists[
+                        (trapClust==k)[1:-1]]) for k in set(trapClust[arrlist])]
+                    #print('arrl =   ', arrl)
                     #from IPython import embed; embed()
+                    Notdone[arrl] = False
+                except (IndexError, AssertionError):
+                    pass
+
+                
+                arr = (arr & ~Notdone)
+                #if (trapped[arr].sum()>0) and (len(arrlist)>0):
+                 #   print(self.elementLists[arr[1:-1]])
+                  #  print(arrlist)
+                   # from IPython import embed; embed()
+                   
+                trapped[arr] = False
+                trappedPc[arr] = 0.0
+                trapClust[arr] = 0
                 return False
             except (IndexError, ValueError):
                 arr = (arr & ~Notdone)

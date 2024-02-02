@@ -124,34 +124,25 @@ class TwoPhaseDrainage(SinglePhase):
             
             self.oldPcTarget = self.capPresMax
             self.PcTarget = min(self.maxPc+1e-7, self.PcTarget+(
-                    self.minDeltaPc+abs(
-                     self.PcTarget)*self.deltaPcFraction))
+                self.minDeltaPc+abs(self.PcTarget)*self.deltaPcFraction))
             self.SwTarget = max(self.finalSat-1e-15, round((
-                    self.satW-self.dSw*0.75)/self.dSw)*self.dSw)
+                self.satW-self.dSw*0.75)/self.dSw)*self.dSw)
 
             if len(self.ElemToFill) == 0:
                 self.filling = False
+                self.cnt, self.totNumFill = 0, 0
 
-                while self.PcTarget < self.maxPc-0.001:
+                while (self.PcTarget < self.maxPc-1e-8) and (self.satW>self.finalSat):
                     self.__CondTP_Drainage__()
                     self.satW = self.do.Saturation(self.AreaWPhase, self.AreaSPhase)
-                    self.SwTarget = self.satW
-                    gwL = self.do.computegL(self.gwP, self.gwT)
-                    self.qW = self.do.computeFlowrate(gwL)
-                    self.krw = self.qW/self.qwSPhase
-                    if any(self.fluid[self.tList[self.isOnOutletBdr[self.tList]]] == 1):
-                        gnwL = self.do.computegL(self.gNWPhase)
-                        self.qNW = self.do.computeFlowrate(gnwL, phase=1)
-                        self.krnw = self.qNW/self.qnwSPhase
-                    else:
-                        self.qNW, self.krnw = 0, 0
-
+                    self.do.computePerm()
                     self.resultD_str = self.do.writeResult(self.resultD_str, self.capPresMax)
-                    self.PcTarget = min(self.maxPc+1e-7, self.PcTarget+(
-                        self.minDeltaPc+abs(
-                         self.PcTarget)*self.deltaPcFraction))
-                    self.capPresMax = self.PcTarget
-                
+
+                    self.PcTarget = min(self.maxPc-1e-7, self.PcTarget+(
+                        self.minDeltaPc+abs(self.PcTarget)*self.deltaPcFraction))
+                    if self.capPresMax == self.PcTarget: break
+                    else: self.capPresMax = self.PcTarget
+                   
                 break
 
         if self.writeData:
@@ -203,10 +194,14 @@ class TwoPhaseDrainage(SinglePhase):
             self.oldSatW = self.satW
             self.invInsideBox = 0
             self.cnt = 0
-            while (self.invInsideBox < self.fillTarget) & (
-                len(self.ElemToFill) != 0) & (
-                    self.PcD[self.ElemToFill[0]] <= self.PcTarget):
-                self.popUpdateOilInj()
+            try:
+                while (self.invInsideBox < self.fillTarget) & (
+                    len(self.ElemToFill) != 0) & (
+                        self.PcD[self.ElemToFill[0]] <= self.PcTarget):
+                    self.popUpdateOilInj()
+            except IndexError:
+                break
+
             try:
                 assert (self.PcD[self.ElemToFill[0]] > self.PcTarget) & (
                         self.capPresMax < self.PcTarget)
@@ -233,7 +228,7 @@ class TwoPhaseDrainage(SinglePhase):
         try:
             assert (self.PcD[self.ElemToFill[0]] > self.PcTarget)
             self.capPresMax = self.PcTarget
-        except AssertionError:
+        except (AssertionError, IndexError):
             self.PcTarget = self.capPresMax
         
         self.__CondTP_Drainage__()
