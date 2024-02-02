@@ -514,13 +514,10 @@ class Throat:
         self.LP1mod = parent.LP1array_mod[self.index-1]
         self.LP2mod = parent.LP2array_mod[self.index-1]
         self.LTmod = parent.LTarray_mod[self.index-1]
-
         self.neighbours = np.array([self.P1, self.P2])
-        parent.TPConnections[self.index]=self.neighbours
-        
+        parent.TPConnections[self.index]=self.neighbours       
  
         
-
 class Triangle:  
     def __init__(self, parent, obj):
         self.__dict__.update(vars(obj))
@@ -531,7 +528,6 @@ class Triangle:
         self.m_initOrMinApexDistHist = np.full(3, np.inf)
         self.m_initOrMaxPcHist = np.full(3, -np.inf)
         self.m_initedApexDist = np.zeros(3)
-        
         self.indexTr = np.where(parent.elemTriangle == self.indexOren)
         self.halfAng = parent.halfAnglesTr[self.indexTr]
 

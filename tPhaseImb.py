@@ -39,6 +39,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.is_oil_inj = False
         self.do.__initCornerApex__()
         self.__computePistonPc__()
+        self.randNum = self.rand(self.totElements)
         self.__computePc__(self.maxPc, self.elementLists, False)
 
         self._areaWP = self._cornArea.copy()
@@ -123,7 +124,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
                     
                 break
 
-            self.PcTarget = max(self.minPc-1e-7, self.PcTarget-(
+            self.PcTarget = max(self.minPc+1e-7, self.PcTarget-(
                 self.minDeltaPc+abs(
                     self.PcTarget)*self.deltaPcFraction+1e-16))
             self.SwTarget = min(self.finalSat+1e-15, round((
@@ -197,8 +198,8 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         try:
             assert not self.do.isTrapped(k, 1, self.capPresMin)
             self.fluid[k] = 0
-            self.fillmech[k] = 1*(self.PistonPcAdv[k] == capPres)+3*(
-                self.snapoffPc[k] == capPres)
+            self.fillmech[k] = 1*(self.PistonPcAdv[k]==capPres)+2*(
+                self.porebodyPc[k]==capPres)+3*(self.snapoffPc[k]==capPres)
             self.cnt += 1
             self.invInsideBox += self.isinsideBox[k]
 
@@ -623,30 +624,77 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             self.ElemToFill.update(arr[(self.fluid[arr]==1)])
             
 
-    def __porebodyFilling__(self, ind):
+    def __porebodyFilling1__(self, ind):
         try:
             assert ind.size > 0
         except AssertionError:
             return
         
-        arr1 = np.array([self.PTConData[i][self.fluid[
-                self.PTConData[i]+self.nPores] == 1].size for i in ind])
+        #arr1 = np.array([self.PTConData[i][self.fluid[
+         #       self.PTConData[i]+self.nPores] == 1].size for i in ind])
+        arr1 = np.array([(self.fluid[
+                self.PTConData[i]+self.nPores]==1).sum() for i in ind])
+        if any(arr1>5):
+            print('greater than 5', arr1)
         arr1[arr1 > 5] = 5
         cond = (arr1 > 1)
         
         # Oren - not correct though!
         #sumrand = np.array([*map(lambda i: self.rand(i-1).sum(), arr1[cond])])*self.Rarray[
          #   ind[cond]]
+        
         # Blunt2
         sumrand = np.zeros(ind.size)
         sumrand[cond] = np.array([*map(lambda i: (self.rand(i-1)*15000).sum(), arr1[cond])])
+
+        if any(arr1==5):
+            print('greater than 5', sumrand)
+
+
         try:
             # Blunt2
             Pc = self.sigma*(2*np.cos(self.thetaAdvAng[ind])/self.Rarray[
                 ind] - sumrand)
         except TypeError:
             pass
+
+        if any(arr1==5):
+            print('greater than 5', Pc)
         
+        return Pc
+
+
+    def __f(self, arr):
+        try:
+            assert arr.size>1
+            try:
+                arr=self.randNum[arr]
+                assert arr.size<=5
+                arr=arr[arr!=arr.max()]
+                return arr.sum()*15000
+            except AssertionError:
+                arr.sort()
+                return arr[:5].sum()*15000
+        except AssertionError:
+            return 0.0
+    
+    def __porebodyFilling__(self, ind):
+        try:
+            assert ind.size > 0
+        except AssertionError:
+            return
+        
+        arr = self.PTConnections[ind]
+        arr1 = [i[(self.fluid[i]==1)&(i>0)] for i in arr]
+        sumrand = np.array([*map(lambda i: self.__f(i), arr1)])
+
+        try:
+            # Blunt2
+            Pc = self.sigma*(2*np.cos(self.thetaAdvAng[ind])/self.Rarray[
+                ind] - sumrand)
+        except TypeError:
+            pass
+
         self.porebodyPc[ind] = Pc
 
 
