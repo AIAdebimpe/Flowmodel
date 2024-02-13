@@ -102,7 +102,6 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.createFile = True
 
         while self.filling:
-        
             self.__PImbibition__()
 
             if (self.PcTarget < self.minPc+0.001) or (
@@ -141,6 +140,7 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
         self.do.__finitCornerApex__(self.capPresMin)
         print('Time spent for the imbibition process: ', time() - start)
         print('===========================================================')
+        #from IPython import embed; embed()
     
 
     def __PImbibition__(self):
@@ -236,13 +236,15 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             cornA, cornG = self.do.calcAreaW(
                 arrrS, self.halfAnglesSq, conAngPS, self.cornExistsSq, apexDistPS)
             
-            condlist = (cornA<self.AreaSPhase[self.elemSquare[arrrS]])
+            '''condlist = (cornA<self.AreaSPhase[self.elemSquare[arrrS]])
             condlist = condlist & (cornA < self._cornArea[self.elemSquare[arrrS]])
             self._cornArea[self.elemSquare[arrrS][condlist]] = cornA[condlist]
 
             condlist = (cornG<self.gwSPhase[self.elemSquare[arrrS]])
             condlist = condlist & (cornG < self._cornCond[self.elemSquare[arrrS]])
-            self._cornCond[self.elemSquare[arrrS][condlist]] = cornG[condlist]
+            self._cornCond[self.elemSquare[arrrS][condlist]] = cornG[condlist]'''
+            self._cornArea[self.elemSquare[arrrS]] = cornA
+            self._cornCond[self.elemSquare[arrrS]] = cornG
         except AssertionError:
             pass
 
@@ -259,13 +261,15 @@ class TwoPhaseImbibition(TwoPhaseDrainage):
             cornA, cornG = self.do.calcAreaW(
                 arrrT, self.halfAnglesTr, conAngPT, self.cornExistsTr, apexDistPT)
             
-            condlist = (cornA<self.AreaSPhase[self.elemTriangle[arrrT]])
+            '''condlist = (cornA<self.AreaSPhase[self.elemTriangle[arrrT]])
             condlist = condlist & (cornA > self._cornArea[self.elemTriangle[arrrT]])
             self._cornArea[self.elemTriangle[arrrT][condlist]] = cornA[condlist]
 
             condlist = (cornG<self.gwSPhase[self.elemTriangle[arrrT]])
             condlist = condlist & (cornG > self._cornCond[self.elemTriangle[arrrT]])
-            self._cornCond[self.elemTriangle[arrrT][condlist]] = cornG[condlist]
+            self._cornCond[self.elemTriangle[arrrT][condlist]] = cornG[condlist]'''
+            self._cornArea[self.elemTriangle[arrrT]] = cornA
+            self._cornCond[self.elemTriangle[arrrT]] = cornG
         except AssertionError:
             pass
 

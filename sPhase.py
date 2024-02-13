@@ -35,28 +35,27 @@ class SinglePhase(Network):
         compute = Computations(self)
         gLSP = compute.computegL(self.gSP)
         
-        arrPoreList = np.zeros(self.nPores+2, dtype='bool')    
-        arrPoreList[self.P1array[(gLSP > 0.0)]] = True
-        arrPoreList[self.P2array[(gLSP > 0.0)]] = True
-        indPS = self.poreList[arrPoreList[1:-1]]
-        indTS = self.throatList[(gLSP > 0.0)]
-        #from IPython import embed; embed()
-        #print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-        conn = compute.isConnected(indPS, indTS)
-        #print('*******************************')
-        #print(conn, conn.sum())
-
+        arrr = np.zeros(self.totElements, dtype='bool')    
+        arrr[self.P1array[(gLSP > 0.0)]] = True
+        arrr[self.P2array[(gLSP > 0.0)]] = True
+        arrr[self.tList[(gLSP > 0.0)]] = True
+        arrr = (arrr & self.connected & self.isinsideBox)
+    
+        conn = compute.isConnected(arrr)
         AmatrixW, CmatrixW = compute.__getValue__(conn, gLSP)
         presSP = np.zeros(self.nPores+2)
-        presSP[self.poreList[self.isOnInletBdr[self.poreList]]] = 1.0
-        presSP[1:-1][conn[self.poreList]] = compute.matrixSolver(AmatrixW, CmatrixW)
+        presSP[conn[self.poreListS]] = compute.matrixSolver(
+            AmatrixW, CmatrixW)
+        presSP[self.isOnInletBdr[self.poreListS]] = 1.0
+
         delSP = np.abs(presSP[self.P1array] - presSP[self.P2array])
         qp = gLSP*delSP
-
-        qinto = qp[self.isOnInletBdr[self.tList] & conn[self.tList]].sum()
-        qout = qp[self.isOnOutletBdr[self.tList] & conn[self.tList]].sum()
-
+        
         try:
+            conTToInlet = self.conTToInlet[conn[self.conTToInlet+self.nPores]]
+            conTToOutlet = self.conTToOutlet[conn[self.conTToOutlet+self.nPores]]
+            qinto = qp[conTToInlet-1].sum()
+            qout = qp[conTToOutlet-1].sum()
             assert np.isclose(qinto, qout, atol=1e-30)
             qout = (qinto+qout)/2
         except AssertionError:

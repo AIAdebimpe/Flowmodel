@@ -1,0 +1,18 @@
+======================================================================
+# Fluid properties:
+sigma (mN/m)  	mu_w (cP)  	mu_nw (cP)
+# 	57		0.821		0.838
+# calcBox: 	 0 	 1
+# Wettability:
+# model 	mintheta 	maxtheta 	delta 	eta 	distmodel
+# 1		0		0		0.2		3rand
+mintheta 	maxtheta 	mean  	std
+#   0		  0		  0		  0
+Porosity:  0.0912635
+Maximum pore connection:   28
+Average pore-to-pore distance:  0.00015051
+Mean pore radius:  1.24962e-05
+Absolute permeability:  2.83387e-14
+======================================================================
+# Sw	 qW(m3/s)	 krw	 qNW(m3/s)	 krnw	 Pc	 Invasions
+1,1.392654e-13,1,0.000000e+00,0,100,0

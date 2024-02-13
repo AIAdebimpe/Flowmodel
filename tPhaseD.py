@@ -115,7 +115,7 @@ class TwoPhaseDrainage(SinglePhase):
 
         while self.filling:
             self.oldSatW = self.satW
-            self.__PDrainage__()        
+            self.__PDrainage__()
             
             if (self.PcTarget > self.maxPc-0.001) or (
                  self.satW < self.finalSat+0.00001):
@@ -154,6 +154,7 @@ class TwoPhaseDrainage(SinglePhase):
         print("Number of trapped elements: W: {}  NW:{}".format(
             self.trappedW.sum(), self.trappedNW.sum()))
         print(self.rpd, self.sigma, self.maxPc)
+        print(len(self.ElemToFill), self.PcD[self.ElemToFill[:10]])
         self.is_oil_inj = False
         self.do.__finitCornerApex__(self.capPresMax)
         print('Time spent for the drainage process: ', time() - start)        

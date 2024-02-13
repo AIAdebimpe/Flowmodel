@@ -13,8 +13,8 @@ class Network(InputData):
     def __init__(self, inputFile):
         st = time()        
         super().__init__(inputFile)
-        
-        print('Reading network filesssss')
+
+        print('Reading network files for {}'.format(self.network()))
 
         self.MAX_ITER = 1000
         self.EPSILON = 1.0e-6
@@ -23,7 +23,7 @@ class Network(InputData):
         self.satW = 1.0
         self.mu = 0.001
         self.RAND_MAX = 2147483647
-        self.bndG1 = sqrt(3)/36+0.000001
+        self.bndG1 = sqrt(3)/36+0.00001
         self.bndG2 = 0.07
         self.bndG3 = sqrt(3)/36
         self.pin_ = -1
@@ -58,10 +58,10 @@ class Network(InputData):
         self.__porosity__()
 
         self.elem = np.zeros(self.nPores+self.nThroats+2, dtype=object)
-        self.elem[-1] = Inlet()     # create an inlet (index = -1)
-        self.elem[0] = Outlet(L=self.Lnetwork)     # create an outlet (index = 0)
-        self.elem[-1].neighbours = []
-        self.elem[0].neighbours = []
+        self.elem[-1] = Inlet(self)     # create an inlet (index = -1)
+        self.elem[0] = Outlet(self)     # create an outlet (index = 0)
+        self.elem[-1].neighbours = self.conTToIn+self.nPores
+        self.elem[0].neighbours = self.conTToOut+self.nPores
         
         self.__elementList__()
         #[*map(lambda i: self.__elementList__(i), self.elementLists)]
@@ -110,6 +110,8 @@ class Network(InputData):
         self.poreListS = np.arange(self.nPores+2)
         self.poreListS[-1] = -1
         self.elementLists = np.arange(1, self.nPores+self.nThroats+1)
+        self.elementListS = np.arange(self.nPores+self.nThroats+2)
+        self.elementListS[-1] = -1
 
 
     def __getDataT__(self, x, y):
@@ -144,8 +146,7 @@ class Network(InputData):
             "T", "P1", "P2", "r", "shapeFact", "LP1",
             "LP2", "LT", "lenTot", "volume", "clayVol"])
 
-        self.PPConData = np.array(self.poreCon, dtype=object)
-        self.PTConData = np.array(self.throatCon, dtype=object)
+        
         self.P1array = ThroatData['P1'].values
         self.P2array = ThroatData['P2'].values
         self.LP1array = ThroatData['LP1'].values
@@ -168,10 +169,17 @@ class Network(InputData):
         self.conTToIn = self.throatList[(self.P1array == self.pin_) | (self.P2array == self.pin_)]
         self.conTToOut = self.throatList[(self.P1array == self.pout_) | (
             self.P2array == self.pout_)]
+        
+        print('@@@@@@@@@@@@@@@@@@@@@@@@')
+        self.poreCon.append(self.conPToIn)
+        self.throatCon.append(self.conTToIn)
+        self.PPConData = np.array(self.poreCon, dtype=object)
+        self.PTConData = np.array(self.throatCon, dtype=object)
+        print('***************************')
 
         self.Garray = np.zeros(self.totElements)
         self.Garray[self.poreList] = self.shapeFact(PoreData['shapeFact'].values)
-        self.Garray[self.nPores+self.throatList] = self.shapeFact(ThroatData['shapeFact'].values)
+        self.Garray[self.tList] = self.shapeFact(ThroatData['shapeFact'].values)
         self.elemTriangle = self.elementLists[self.Garray[1:-1] <= self.bndG1]
         self.elemCircle = self.elementLists[self.Garray[1:-1] >= self.bndG2]
         self.elemSquare = self.elementLists[
@@ -179,15 +187,15 @@ class Network(InputData):
 
         self.volarray = np.zeros(self.totElements)
         self.volarray[self.poreList] = PoreData['volume'].values
-        self.volarray[+self.nPores+self.throatList] = ThroatData['volume'].values
+        self.volarray[+self.tList] = ThroatData['volume'].values
         
         self.Rarray = np.zeros(self.totElements)
         self.Rarray[self.poreList] = PoreData['r'].values
-        self.Rarray[self.nPores+self.throatList] = ThroatData['r'].values
+        self.Rarray[self.tList] = ThroatData['r'].values
 
         self.ClayVolarray = np.zeros(self.totElements)
         self.ClayVolarray[self.poreList] = PoreData['clayVol'].values
-        self.ClayVolarray[self.nPores+self.throatList] = ThroatData['clayVol'].values
+        self.ClayVolarray[self.tList] = ThroatData['clayVol'].values
 
         del PoreData
         del ThroatData
@@ -196,22 +204,41 @@ class Network(InputData):
         self.isinsideBox = np.zeros(self.totElements, dtype='bool')
         self.isinsideBox[self.poreList] = (self.x_array[1:-1] >= self.xstart) & (
             self.x_array[1:-1] <= self.xend)
-        self.isinsideBox[self.nPores+self.throatList] = (
+        self.isinsideBox[self.tList] = (
             self.isinsideBox[self.P1array] | self.isinsideBox[self.P2array])
         
     def __isOnBdr__(self):
         self.isOnInletBdr = np.zeros(self.totElements, dtype='bool')
-        self.isOnInletBdr[self.nPores+self.throatList] = (
-            self.isinsideBox[self.nPores+self.throatList] & ((
+        self.isOnOutletBdr = np.zeros(self.totElements, dtype='bool')
+
+        condP1 = (self.isinsideBox[self.tList]) & (~self.isinsideBox[self.P1array])
+        self.isOnInletBdr[self.P1array[condP1]] = (self.x_array[self.P1array[condP1]] < self.xstart)
+        self.isOnOutletBdr[self.P1array[condP1]] = (self.x_array[self.P1array[condP1]] > self.xend)
+
+        condP2 = (self.isinsideBox[self.tList]) & (~self.isinsideBox[self.P2array])
+        self.isOnInletBdr[self.P2array[condP2]] = (self.x_array[self.P2array[condP2]] < self.xstart)
+        self.isOnOutletBdr[self.P2array[condP2]] = (self.x_array[self.P2array[condP2]] > self.xend)
+
+        self.isOnBdr = self.isOnInletBdr | self.isOnOutletBdr
+        self.conTToInlet = self.throatList[(self.isinsideBox[self.tList]) & (
+            self.isOnInletBdr[self.P1array] | self.isOnInletBdr[self.P2array])]
+        self.conTToOutlet = self.throatList[(self.isinsideBox[self.tList]) & (
+            self.isOnOutletBdr[self.P1array] | self.isOnOutletBdr[self.P2array])]
+
+
+    def __isOnBdr1__(self):
+        self.isOnInletBdr = np.zeros(self.totElements, dtype='bool')
+        self.isOnInletBdr[self.tList] = (
+            self.isinsideBox[self.tList] & ((
                 (~self.isinsideBox[self.P1array]) & (self.x_array[self.P1array] <= self.xstart)) | ((~self.isinsideBox[self.P2array]) & (self.x_array[self.P2array] <= self.xstart)))
         )
         self.isOnOutletBdr = np.zeros(self.totElements, dtype='bool')
-        self.isOnOutletBdr[self.nPores+self.throatList] = (
-            self.isinsideBox[self.nPores+self.throatList] & ((
+        self.isOnOutletBdr[self.tList] = (
+            self.isinsideBox[self.tList] & ((
                 (~self.isinsideBox[self.P1array]) & (self.x_array[self.P1array] >= self.xend)) | ((~self.isinsideBox[self.P2array]) & (self.x_array[self.P2array] >= self.xend)))
         )
 
-        cond1 = self.isinsideBox[self.nPores+self.throatList] & ~(self.isinsideBox[self.P2array])
+        cond1 = self.isinsideBox[self.tList] & ~(self.isinsideBox[self.P2array])
         pp = self.P2array[cond1 & ((self.x_array[self.P2array] < self.xstart) | (
             self.P2array == self.pin_))]
         self.isOnInletBdr[pp] = True
@@ -219,7 +246,7 @@ class Network(InputData):
             self.P2array == self.pout_))]
         self.isOnOutletBdr[pp] = True
 
-        cond2 = self.isinsideBox[self.nPores+self.throatList] & (~self.isinsideBox[self.P1array])
+        cond2 = self.isinsideBox[self.tList] & (~self.isinsideBox[self.P1array])
         pp = self.P1array[cond2 & ((self.x_array[self.P1array] < self.xstart) | (
             self.P1array == self.pin_))]
         self.isOnInletBdr[pp] = True
@@ -245,8 +272,8 @@ class Network(InputData):
         return np.random.choice(obj, size)
     
     def __identifyConnectedElements__(self):
-        tin = list(self.throatList[(self.P1array == self.pin_) | (self.P2array == self.pin_)])
-        tout = (self.P1array == self.pout_) | (self.P2array == self.pout_)
+        ttt = list(self.throatList[(self.P1array == self.pin_) | (self.P2array == self.pin_) |
+                                    (self.P1array == self.pout_) | (self.P2array == self.pout_)])
         self.connected = np.zeros(self.totElements, dtype='bool')
         self.connected[-1] = True
 
@@ -257,11 +284,11 @@ class Network(InputData):
             indexP = np.zeros(self.nPores, dtype='bool')
             indexT = np.zeros(self.nThroats, dtype='bool')
             try:
-                assert len(tin) > 0
+                assert len(ttt) > 0
             except AssertionError:
                 break
             
-            t = tin.pop(0)
+            t = ttt.pop(0)
             while True:
                 doneT[t] = True
                 indexT[t-1] = True
@@ -278,7 +305,7 @@ class Network(InputData):
                     assert t.size > 0
                 except AssertionError:
                     try:
-                        assert any(tout & indexT)
+                        #assert any(tout & indexT)
                         self.connected[self.poreList[indexP]] = True
                         self.connected[self.throatList[indexT]+self.nPores] = True
                         
@@ -286,28 +313,28 @@ class Network(InputData):
                         pass
 
                     try:
-                        assert len(tin) > 0
-                        tin = np.array(tin)
-                        tin = list(tin[~doneT[tin]])
+                        assert len(ttt) > 0
+                        ttt = np.array(ttt)
+                        ttt = list(ttt[~doneT[ttt]])
                     except AssertionError:
                         break
                     break
 
-        self.connected[-1] = False
+        self.connected[[0,-1]] = True
         #from IPython import embed; embed()
 
     def __computeDistToExit__(self):
         self.distToExit = np.zeros(self.totElements)
         self.distToExit[-1] = self.Lnetwork
         self.distToExit[self.poreList] = self.Lnetwork - self.x_array[1:-1]
-        self.distToExit[self.nPores+self.throatList] = np.minimum(
+        self.distToExit[self.tList] = np.minimum(
             self.distToExit[self.P1array], self.distToExit[self.P2array])
         
     def __computeDistToBoundary__(self):
         self.distToBoundary = np.zeros(self.totElements)
         self.distToBoundary[self.poreList] = np.minimum(self.x_array[
             1:-1], self.distToExit[self.poreList])
-        self.distToBoundary[self.nPores+self.throatList] = np.minimum(
+        self.distToBoundary[self.tList] = np.minimum(
             self.distToBoundary[self.P1array], self.distToBoundary[self.P2array])
         
     def __elementList__(self):
@@ -336,16 +363,6 @@ class Network(InputData):
                     except AssertionError:
                         el = Element(self, Square(tt))
 
-                try:
-                    assert el.conToInlet
-                    self.elem[-1].neighbours.append(el.indexOren)
-                except AssertionError:
-                    try:
-                        assert el.conToOutlet
-                        self.elem[0].neighbours.append(el.indexOren)
-                    except AssertionError:
-                        pass
-
             self.elem[el.indexOren] = el
 
 
@@ -370,8 +387,8 @@ class Network(InputData):
         self.halfAnglesTr = np.column_stack((beta1, beta2, beta3))
 
     def __modifyLength__(self):
-        cond1 = self.isinsideBox[self.nPores+self.throatList] & ~(self.isinsideBox[self.P2array])
-        cond2 = self.isinsideBox[self.nPores+self.throatList] & (~self.isinsideBox[self.P1array])
+        cond1 = self.isinsideBox[self.tList] & ~(self.isinsideBox[self.P2array])
+        cond2 = self.isinsideBox[self.tList] & (~self.isinsideBox[self.P1array])
 
         scaleFact = np.zeros(self.nThroats)
         bdr = np.zeros(self.nThroats)
@@ -552,21 +569,25 @@ class Circle:
     
 
 class Inlet:
-    def __init__(self):
+    def __init__(self, parent):
         self.index = -1
         self.x = 0.0
         self.indexOren = -1
         self.connected = True
         self.isinsideBox = False
+        # to implement this later if need arise
+        #parent.PTConnections[self.index][:parent.conTToIn.size]=parent.conTToIn
 
 
 class Outlet:
-    def __init__(self, L):
+    def __init__(self, parent):
         self.index = 0
-        self.x = L
+        self.x = parent.Lnetwork
         self.indexOren = 0
         self.connected = False
         self.isinsideBox = False
+        # to implement this if need arise
+        #parent.PTConnections[self.index][:parent.conTToOut.size]=parent.conTToOut
 
 
 #network = Network('./data/input_pnflow_bent.dat')

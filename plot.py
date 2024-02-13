@@ -36,6 +36,41 @@ class makePlot():
             drainageBank(self)
         elif self.imbibe:
             imbibitionBank(self)
+
+
+    def formatFig(self, xlabel, ylabel, leg, xlim, ylim, loc=1):
+        label_font = {'fontname': 'Arial', 'size': 14, 'color': 'black', 'weight': 'bold',
+                      'labelpad': 10}
+        
+        legend = plt.legend(leg, frameon=False,loc=loc)
+        print(legend)
+        ax = plt.gca()
+        ax.tick_params(direction='in', axis='both', which='major', pad=10)
+        
+        # Set the rotation and label coordinates for the fraction part
+        #ax.yaxis.label.set_rotation(0)
+        #ax.yaxis.set_label_coords(-0.19, 0.5)
+
+        # Increase font size and make it bold        
+        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] + ax.get_xticklabels() 
+                     + ax.get_yticklabels() + legend.get_texts()):
+            item.set_fontsize(14)
+            item.set_fontname('Arial')
+            item.set_fontweight('bold')
+            #item.set_w
+
+        # Remove right and top spines
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        ax.set_xlabel(xlabel, **label_font)
+        ax.set_ylabel(ylabel, **label_font, rotation=90)
+        
+        ax.set_ylim(ylim)
+        ax.set_xlim(xlim)
+
+        plt.tight_layout()
+
             
     def pcSw(self):
         if self.drain:
@@ -63,19 +98,20 @@ class makePlot():
                                 facecolors='none', edgecolors='k')
                     leg.append(val)
             elif val == 'model':
-                plt.plot(res['satW'], res['capPres']/1000, '-r', linewidth=2)
-                leg.append(val)
+                plt.plot(res['satW'], res['capPres']/1000, '--r', linewidth=2)
+                #leg.append(val)
             else:
                 plt.plot(res['satW'], res['capPres']/1000, linestyle=self.linelist[ind], 
                          color=self.colorlist[ind], linewidth=2)
                 leg.append(val)
                 ind += 1
             
-        plt.ylabel('Capillary Pressure(kPa)')
-        plt.legend(leg)
-        plt.ylim(0, 25)
-        plt.xlim(0, 1)
-        plt.xlabel('Sw')
+
+        xlabel = r'$\mathbf{S_w}$'
+        ylabel = r'Capillary Pressure ($\boldsymbol{kPa}$)'
+        xlim = (0, 1.01)
+        ylim = (0 , 30)
+        self.formatFig(xlabel, ylabel, leg, xlim, ylim)
         plt.savefig(filename, dpi=500)
         plt.close()
 
@@ -102,11 +138,11 @@ class makePlot():
                 leg.append('Literature data (krnw)')
                 
             elif val == 'model':
-                plt.plot(res['satW'], res['krw'], linestyle='-',
+                plt.plot(res['satW'], res['krw'], linestyle='--',
                         color='r', linewidth=2)
-                plt.plot(res['satW'], res['krnw'], linestyle='-',
+                plt.plot(res['satW'], res['krnw'], linestyle='--',
                         color='r', linewidth=2, label = '_nolegend_')
-                leg.append(val)
+                #leg.append(val)
             
             else:
                 plt.plot(res['satW'], res['krw'], linestyle=self.linelist[j], linewidth=2,
@@ -116,11 +152,11 @@ class makePlot():
                 j += 1
                 leg.append(val)
             
-        plt.ylabel('Relative Permeability')
-        plt.legend(labels=leg)
-        plt.xlabel('Sw')
-        plt.xlim(0, 1.0)
-        plt.ylim(0, 1.0)
+        xlabel = r'$\mathbf{S_w}$'
+        ylabel = r'Relative Permeability'
+        xlim = (0, 1.01)
+        ylim = (0 , 1.01)
+        self.formatFig(xlabel, ylabel, leg, xlim, ylim)
         plt.savefig(filename, dpi=500)
         plt.close()
 
@@ -150,10 +186,10 @@ class drainageBank:
             skiprows=1, index_col=False)
         
         
-        self.results['Valvatne et al.'] = pd.read_csv(
+        '''self.results['Valvatne et al.'] = pd.read_csv(
             './results_csv/pnflow_Bentheimer_Drainage_010725.csv',
             names=['satW', 'capPres', 'krw', 'krnw', 'RI'], sep=',',
-            skiprows=1, index_col=False)
+            skiprows=1, index_col=False)'''
         
     def __compWithPrevData__(self):
         if self.include:
@@ -198,10 +234,10 @@ class imbibitionBank():
             names=['satW', 'krw', 'krnw'], sep=',',
             skiprows=1, index_col=False)
         
-        self.results['Valvatne et al.'] = pd.read_csv(
+        '''self.results['Valvatne et al.'] = pd.read_csv(
             './results_csv/pnflow_Bentheimer_Imbibition_010725.csv', names=[
                 'satW', 'capPres', 'krw', 'krnw', 'RI'], sep=',', skiprows=1,
-            index_col=False)
+            index_col=False)'''
             
     def __compWithPrevData__(self):
         if self.include:
